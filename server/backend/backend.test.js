@@ -281,7 +281,8 @@ test('database configuration is validated and TLS verifies the server certificat
   const database = getDatabase({
     POSTGRES_URL: 'postgresql://runtime:password@db.example:6543/postgres',
   });
-  assert.deepEqual(database.options.ssl, { rejectUnauthorized: true });
+  assert.equal(database.options.ssl.rejectUnauthorized, true);
+  assert.match(database.options.ssl.ca, /BEGIN CERTIFICATE/);
   await database.end();
 });
 

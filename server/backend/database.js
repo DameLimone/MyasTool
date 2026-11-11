@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { readFileSync } from 'node:fs';
 import { ApiError } from './errors.js';
 import { createRepositories } from './repositories.js';
 import { execute } from './query.js';
@@ -27,7 +28,7 @@ export function getDatabase(env = process.env) {
     pools.set(connectionString, postgres(connectionString, {
       max: 1,
       prepare: false,
-      ssl: { rejectUnauthorized: true },
+      ssl: { rejectUnauthorized: true, ca: readFileSync(new URL('./supabase-ca.crt', import.meta.url), 'utf8') },
       connect_timeout: 10,
       idle_timeout: 20,
     }));

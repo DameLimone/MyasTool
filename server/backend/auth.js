@@ -37,7 +37,8 @@ function requestUrl(req) {
 }
 
 export async function authenticateClerkRequest(req, env = process.env, clientFactory = createClerkClient) {
-  if (!env.CLERK_SECRET_KEY || !env.CLERK_PUBLISHABLE_KEY) {
+  const publishableKey = env.CLERK_PUBLISHABLE_KEY || env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!env.CLERK_SECRET_KEY || !publishableKey) {
     throw new ApiError(503, 'BACKEND_NOT_CONFIGURED', 'App sign-in is not configured.');
   }
   const parties = authorizedParties(env);
@@ -52,7 +53,7 @@ export async function authenticateClerkRequest(req, env = process.env, clientFac
   try {
     const clerk = clientFactory({
       secretKey: env.CLERK_SECRET_KEY,
-      publishableKey: env.CLERK_PUBLISHABLE_KEY,
+      publishableKey,
     });
     state = await clerk.authenticateRequest(request, {
       acceptsToken: 'session_token',

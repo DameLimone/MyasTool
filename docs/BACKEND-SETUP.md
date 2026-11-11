@@ -73,14 +73,16 @@ The hosted schema records matching application migration checksums.
   database membership. No business modules or capabilities are enabled yet.
 
 Both routes return private, no-store responses with request IDs. Square seller
-OAuth is not used as app sign-in. Existing Square endpoints are not changed.
+OAuth is not used as app sign-in. Hosted Square endpoints also require approved app access; OAuth is user-bound.
 The same API handlers are mounted in local Vite development and deployed as
 Vercel Functions.
 
 ## Not enabled
 
-The frontend has no Clerk sign-in flow yet, and no production environment has
-been connected to Supabase or Clerk. Workspace creation and membership
-administration are out-of-band. The jobs table is schema groundwork only: no
-Cron endpoint, schedule, retries, or job side effects are active. Complete the
-relevant acceptance checks before enabling any worker or business module.
+The private app gate, owner bootstrap, settings and approved-people screen are
+implemented. Vercel Production has Clerk and a restricted TLS-verified Supabase
+runtime connection. Clerk currently uses the Marketplace development instance;
+production-instance provisioning and the owner's own verified sign-in remain
+launch acceptance steps. See APP-ACCESS.md for exact behavior and limitations.
+The jobs table remains groundwork: no notification worker or scheduled side
+effects are active. Content drafts/media remain browser-local.

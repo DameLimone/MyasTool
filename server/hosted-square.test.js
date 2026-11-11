@@ -5,7 +5,7 @@ import { createHostedSquareHandler } from './hosted-square.js';
 const env = { SQUARE_APP_ORIGIN: 'https://tool.test', SQUARE_ENVIRONMENT: 'production', SQUARE_APPLICATION_ID: 'app', SQUARE_APPLICATION_SECRET: 'secret', SQUARE_TOKEN_KEY: 'ab'.repeat(32) };
 const SESSION = '__Host-mya-square';
 const STATE = '__Host-mya-square-oauth';
-function fixture({ bookingFailure, refreshFailure } = {}) {
+function fixture({ bookingFailure, refreshFailure, security = {} } = {}) {
   let time = Date.parse('2026-11-11T00:00:00Z');
   let revoked = false, outage = false;
   const calls = [], usedCodes = new Set();
@@ -25,11 +25,11 @@ function fixture({ bookingFailure, refreshFailure } = {}) {
     }
     return { ok: true, json: async () => ({ merchant: { id: url.endsWith('/other') ? 'other' : 'seller', business_name: 'Mya’s Salon' } }) };
   };
-  const handler = (overrides = {}) => createHostedSquareHandler({ ...env, ...overrides }, { fetcher, now: () => time });
-  async function request(path, { method, jar = {}, origin = env.SQUARE_APP_ORIGIN, use = handler() } = {}) {
+  const handler = (overrides = {}) => createHostedSquareHandler({ ...env, ...overrides }, { fetcher, now: () => time, ...security });
+  async function request(path, { method, jar = {}, origin = env.SQUARE_APP_ORIGIN, use = handler(), userId='owner' } = {}) {
     const headers = {};
     const res = { statusCode: 200, setHeader(k, v) { headers[k] = v; }, end(body) { this.body = body; } };
-    await use({ url: `/api/square/${path}`, method: method || (path.startsWith('session') || path.startsWith('connect') ? 'POST' : 'GET'), headers: { origin, cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ') } }, res);
+    await use({ myaApprovedUserId:userId, url: `/api/square/${path}`, method: method || (path.startsWith('session') || path.startsWith('connect') ? 'POST' : 'GET'), headers: { origin, cookie: Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ') } }, res);
     for (const c of headers['Set-Cookie'] || []) {
       const first = c.split(';')[0], index = first.indexOf('=');
       if (c.includes('Max-Age=0')) delete jar[first.slice(0, index)];
@@ -45,6 +45,19 @@ function fixture({ bookingFailure, refreshFailure } = {}) {
   }
   return { request, connect, handler, calls, advance: ms => time += ms, revoke: () => revoked = true, outage: () => outage = true };
 }
+
+test('protected Square OAuth binds tokens to the initiating app user and rechecks callback approval',async()=>{
+  let approved=true;
+  const f=fixture({security:{requireIdentity:true,validateCallbackIdentity:async userId=>approved&&userId==='owner'}}),jar={};
+  await f.connect(jar);
+  assert.equal((await f.request('status',{jar})).data.connected,true);
+  assert.equal((await f.request('status',{jar,userId:'other'})).data.connected,false);
+  const pending=new URL((await f.request('connect',{jar})).data.url);
+  approved=false;
+  const calls=f.calls.length;
+  assert.match((await f.request(`callback?state=${pending.searchParams.get('state')}&code=revoked-user`,{jar})).headers.Location,/access-denied$/);
+  assert.equal(f.calls.length,calls);
+});
 
 test('hosted OAuth survives new function instances, encrypts credentials, and isolates browsers', async () => {
   const f = fixture(), jar = {};

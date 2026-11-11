@@ -26,11 +26,11 @@ Those cancellation values remain unknown until explicitly confirmed.
 
 `PATCH /api/v1/workspaces/{workspaceId}/scheduling-settings`
 
-These source handlers use Clerk bearer sessions, active database membership and
-the configured runtime Postgres connection. They are mounted in Vite development
-and have a Vercel Function entrypoint. This change applies Supabase schema/defaults
-but does not deploy the handlers, configure Vercel credentials or assign users.
-There is no settings screen in the public website or this change.
+The Tool settings screen uses these protected endpoints with Clerk bearer sessions,
+active workspace membership and a restricted Supabase connection. Settings refresh
+on active screens every five seconds and on focus. Unsaved drafts are preserved
+when saved data changes elsewhere; revision checks prevent overwriting newer data.
+John's separate public website has not yet been connected to these settings.
 
 Any active member can read configuration. Only owners/admins can edit it. There
 is no permission to self-enroll or select a different workspace by changing the

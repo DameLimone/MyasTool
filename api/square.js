@@ -1,3 +1,3 @@
-import { createHostedSquareHandler } from '../server/hosted-square.js';
+import {createProtectedSquareHandler} from '../server/backend/protected-square.js';
 
-export default createHostedSquareHandler(process.env);
+export default createProtectedSquareHandler(process.env);

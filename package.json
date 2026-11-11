@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@clerk/backend": "^3.27.0",
+    "@clerk/clerk-js": "6.42.3",
     "postgres": "^4.1.1"
   }
 }

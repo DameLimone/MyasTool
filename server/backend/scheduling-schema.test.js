@@ -18,7 +18,7 @@ test('scheduling foundation is isolated, conflict-safe, and disabled until launc
   t.after(() => pg.close());
   const db = databaseFor(pg);
   const migrations = await runMigrations(db);
-  assert.deepEqual(migrations, ['001_identity_workspaces_and_jobs', '20261111193208_scheduling_foundation', '20261111193633_scheduling_rls_context_initplans', '20261111193828_scheduling_activation_guard', '20261111201611_confirmed_weekend_scheduling_rules', '20261111202323_configurable_scheduling_and_reminders']);
+  assert.deepEqual(migrations, ['001_identity_workspaces_and_jobs', '20261111193208_scheduling_foundation', '20261111193633_scheduling_rls_context_initplans', '20261111193828_scheduling_activation_guard', '20261111201611_confirmed_weekend_scheduling_rules', '20261111202323_configurable_scheduling_and_reminders', '20261111204424_approved_workspace_access', '20261111210649_verified_initial_owner_bootstrap']);
   assert.deepEqual(await runMigrations(db), []);
   await pg.query(`INSERT INTO public.organizations(id,name,slug) VALUES ($1,'Test salon','test-salon'),($2,'Other salon','other-salon')`, [org, other]);
   await pg.query(`INSERT INTO scheduling.resources(id,organization_id,name) VALUES ($1,$2,'Test provider')`, [resource, org]);

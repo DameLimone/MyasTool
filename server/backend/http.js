@@ -53,7 +53,7 @@ export function createApiHandler({ method = 'GET', executeRequest }) {
       let data;
       try {
         data = await inUserTransaction(database, identity.userId, context => (
-          executeRequest({ req, identity, ...context })
+          executeRequest({ req, identity, env, ...context })
         ));
       } catch (error) {
         if (databaseConnectionCodes.has(error?.code)) {

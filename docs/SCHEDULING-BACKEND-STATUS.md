@@ -23,8 +23,10 @@ new booking notice is confirmed at 24 hours; advance cancellation terms remain
 unconfirmed. A 60-minute appointment-reminder preference is stored but delivery
 is not implemented. No application users, memberships,
 service menu, customer records or appointments have been seeded.
-The schema was applied through the Supabase connector. This change does not
-configure or verify the Vercel runtime connection string or Clerk credentials.
+The schema was applied through the Supabase connector. Vercel now has a restricted
+runtime pooler connection and Clerk keys. The authenticated Tool settings screen
+refreshes every five seconds. See APP-ACCESS.md for owner approval and the remaining
+Clerk production-instance requirement.
 
 ## Implemented and verified
 
@@ -83,8 +85,8 @@ data into the ciphertext fields. Appointment notes have not been added/imported.
 
 ## Next implementation sequence
 
-1. Configure a restricted runtime database role, transaction pooler and Clerk;
-   establish the real organization and confirmed owner membership.
+1. Complete the owner’s verified sign-in and Clerk production-instance setup;
+   verify the live authenticated settings flow.
 2. Implement private catalog/schedule controls and collect Mya-approved rules.
 3. Implement Square import/reconciliation with scoped durable credentials;
    preserve source truth even when a conflict prevents occupancy insertion.

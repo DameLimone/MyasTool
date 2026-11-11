@@ -7,7 +7,7 @@ const DAY = 86400;
 
 // The encrypted, HttpOnly cookie is this browser's seller session. No shared
 // global seller/token file exists, and OAuth credentials never enter client JS.
-export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now } = {}) {
+export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now, requireIdentity = false, validateCallbackIdentity } = {}) {
   // Environment variable target (Vercel Production) and Square credential
   // environment are separate: Sandbox credentials cannot authorize real sellers.
   const credentialMismatch = env.SQUARE_ENVIRONMENT === 'production'
@@ -91,11 +91,12 @@ export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now
       ...(!configured ? { error: setupError } : {}),
     });
     if (!configured) return json(503, { error: setupError });
-    const session = read(req, SESSION);
+    const savedSession = read(req, SESSION);
+    const session = requireIdentity && savedSession?.userId !== req.myaApprovedUserId ? null : savedSession;
     try {
       if (path === '/api/square/connect') {
         const state = randomBytes(32).toString('base64url');
-        cookie(STATE, encrypt(STATE, { state, merchant: session?.merchant_id || null, exp: now() + 600000 }), 600);
+        cookie(STATE, encrypt(STATE, { state, merchant: session?.merchant_id || null, ...(requireIdentity?{userId:req.myaApprovedUserId}:{}), exp: now() + 600000 }), 600);
         const authorize = new URL(`${base}/oauth2/authorize`);
         authorize.search = new URLSearchParams({ client_id: env.SQUARE_APPLICATION_ID, scope: SQUARE_SCOPES.join(' '), state, redirect_uri: redirect, session: env.SQUARE_ENVIRONMENT === 'sandbox' ? 'true' : 'false' }).toString();
         return json(200, { url: authorize.toString() });
@@ -106,6 +107,7 @@ export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now
         const url = new URL(req.url, origin);
         const state = url.searchParams.get('state') || '';
         if (!pending || !/^[A-Za-z0-9_-]{43}$/.test(state) || !timingSafeEqual(Buffer.from(state), Buffer.from(pending.state))) return back('invalid-state');
+        if(requireIdentity&&(!pending.userId||!await validateCallbackIdentity?.(pending.userId)))return back('access-denied');
         if (url.searchParams.has('error')) return back('declined');
         const code = url.searchParams.get('code');
         if (!code) return back('missing-code');
@@ -114,7 +116,7 @@ export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now
         if (pending.merchant && tokens.merchant_id !== pending.merchant) return back('wrong-seller');
         const data = await square(`/v2/merchants/${encodeURIComponent(tokens.merchant_id)}`, null, tokens.access_token);
         if (data.merchant?.id !== tokens.merchant_id) throw new Error('Merchant mismatch');
-        cookie(SESSION, encrypt(SESSION, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, merchant_id: tokens.merchant_id, expires_at: tokens.expires_at, exp: now() + 30 * DAY * 1000 }), 30 * DAY);
+        cookie(SESSION, encrypt(SESSION, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, merchant_id: tokens.merchant_id, expires_at: tokens.expires_at, ...(requireIdentity?{userId:pending.userId}:{}), exp: now() + 30 * DAY * 1000 }), 30 * DAY);
         return back('connected');
       }
       if (!session) return path.endsWith('/appointments')
@@ -124,7 +126,7 @@ export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now
       if (Date.parse(tokens.expires_at) < now() + DAY * 1000) {
         tokens = await square('/oauth2/token', { client_id: env.SQUARE_APPLICATION_ID, client_secret: env.SQUARE_APPLICATION_SECRET, grant_type: 'refresh_token', refresh_token: session.refresh_token });
         if (!validTokens(tokens) || tokens.merchant_id !== session.merchant_id) throw new Error('Invalid refresh response');
-        cookie(SESSION, encrypt(SESSION, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, merchant_id: tokens.merchant_id, expires_at: tokens.expires_at, exp: now() + 30 * DAY * 1000 }), 30 * DAY);
+        cookie(SESSION, encrypt(SESSION, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, merchant_id: tokens.merchant_id, expires_at: tokens.expires_at, ...(requireIdentity?{userId:session.userId}:{}), exp: now() + 30 * DAY * 1000 }), 30 * DAY);
       }
       if (path === '/api/square/appointments') {
         const result = await readAppointments({ square, accessToken: tokens.access_token, merchantId: tokens.merchant_id, applicationId: env.SQUARE_APPLICATION_ID, query: requestUrl.searchParams, now: now() });

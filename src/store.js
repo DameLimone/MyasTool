@@ -3,8 +3,8 @@ const requestResult = (request) => new Promise((resolve, reject) => {
   request.onerror = () => reject(request.error);
 });
 
-export async function openStore() {
-  const request = indexedDB.open('maya-content-studio', 1);
+export async function openStore(name = 'maya-content-studio') {
+  const request = indexedDB.open(name, 1);
   request.onupgradeneeded = () => request.result.createObjectStore('studio');
   return requestResult(request);
 }
