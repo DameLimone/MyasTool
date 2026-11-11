@@ -55,8 +55,8 @@ The BORG scheduler is a reference, not a replacement for Square's calendar.
 | --- | --- | --- |
 | Square connection | Browser-specific encrypted OAuth session; user reports connection confirmed | Workspace-owned encrypted credentials in durable storage; background refresh and disconnect/revocation |
 | Appointments | Read-only list, location/timezone filters, permission checks | Durable sync state, reconciliation and verified event ingestion |
-| App sign-in | Not implemented | Individual sign-in, membership, role and revocation checks |
-| Operational storage | Posts/media are browser-local; no operational database | PostgreSQL organization-scoped records and migrations |
+| App sign-in | Clerk-verified API foundation in source; no frontend sign-in flow or configured Clerk instance | Individual sign-in, membership, role and revocation checks |
+| Operational storage | Posts/media are browser-local; PostgreSQL migration and scoped repositories are in source but unprovisioned | PostgreSQL organization-scoped records and migrations |
 | Booking changes | Not implemented | Proposed command, explicit approval, provider version checks, idempotency and audit history |
 | Notifications | Not implemented | Durable inbox, preferences, quiet hours, delivery outbox, retries and channel registration |
 | Social accounts/metrics | Not implemented; public Instagram links only | Authorized provider adapters and timestamped metric snapshots |
@@ -155,4 +155,14 @@ modules disabled. Background jobs, customer messages, booking writes and channel
 deliveries require their own completed configuration and acceptance checks.
 
 This document is the reviewed implementation blueprint. It does not mean the
-database, authentication, worker, notifications or social adapters are built.
+database, authentication provider, worker, notifications or social adapters are
+provisioned or enabled.
+
+## Phase 1 code status
+
+The repository now contains the initial identity/workspace/jobs migration,
+checksummed migration runner, Clerk session verification, scoped membership
+repositories, and private `/api/v1/session` and workspace-capabilities handlers.
+The implementation has local isolation tests. No cloud resources or workspace
+records have been provisioned, the frontend has no sign-in UI, and the jobs
+table has no active worker. See [backend setup](./docs/BACKEND-SETUP.md).

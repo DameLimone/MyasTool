@@ -1,0 +1,382 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mya Workspace API",
+    "version": "1.0.0",
+    "description": "Initial private session and workspace-capabilities endpoints. These routes require configured Clerk and Supabase services."
+  },
+  "servers": [
+    {
+      "url": "https://myas-tool.vercel.app",
+      "description": "Production origin; API use remains unavailable until Clerk and Supabase are configured."
+    }
+  ],
+  "security": [
+    {
+      "clerkSession": []
+    }
+  ],
+  "paths": {
+    "/api/v1/session": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "Get the signed-in user and active workspace memberships",
+        "responses": {
+          "200": {
+            "description": "The caller identity and only its active memberships.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                },
+                "examples": {
+                  "success": {
+                    "$ref": "#/components/examples/SessionSuccess"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/UserDisabled"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "503": {
+            "$ref": "#/components/responses/BackendUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/capabilities": {
+      "get": {
+        "operationId": "getWorkspaceCapabilities",
+        "summary": "Get capability state for an active workspace member",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authorized workspace. No business modules are enabled in phase one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                },
+                "examples": {
+                  "success": {
+                    "$ref": "#/components/examples/CapabilitiesSuccess"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The workspace ID is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/UserDisabled"
+          },
+          "404": {
+            "description": "The workspace does not exist or the caller is not an active member.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "notFound": {
+                    "$ref": "#/components/examples/WorkspaceNotFound"
+                  }
+                }
+              }
+            }
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "503": {
+            "$ref": "#/components/responses/BackendUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "clerkSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Clerk session JWT",
+        "description": "A provider-issued Clerk session token. Square OAuth credentials are not app credentials."
+      }
+    },
+    "schemas": {
+      "Meta": {
+        "type": "object",
+        "required": [
+          "requestId"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "WorkspaceMembership": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "timezone",
+          "role"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "user",
+              "workspaces"
+            ],
+            "properties": {
+              "user": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              },
+              "workspaces": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkspaceMembership"
+                }
+              }
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "workspace",
+              "modules",
+              "capabilities"
+            ],
+            "properties": {
+              "workspace": {
+                "$ref": "#/components/schemas/WorkspaceMembership"
+              },
+              "modules": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                }
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "requestId"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "AuthenticationRequired": {
+        "description": "A valid Clerk session token is required.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "UserDisabled": {
+        "description": "The database user record is disabled.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "MethodNotAllowed": {
+        "description": "Only GET is supported.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "BackendUnavailable": {
+        "description": "Clerk, PostgreSQL, or backend configuration is unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "examples": {
+      "SessionSuccess": {
+        "summary": "Synthetic signed-in user with one workspace",
+        "value": {
+          "data": {
+            "user": {
+              "id": "user_fixture_mya"
+            },
+            "workspaces": [
+              {
+                "id": "11111111-1111-4111-8111-111111111111",
+                "name": "Example Workspace",
+                "slug": "example-workspace",
+                "timezone": "UTC",
+                "role": "owner"
+              }
+            ]
+          },
+          "meta": {
+            "requestId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          }
+        }
+      },
+      "CapabilitiesSuccess": {
+        "summary": "Synthetic workspace with no enabled modules",
+        "value": {
+          "data": {
+            "workspace": {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "name": "Example Workspace",
+              "slug": "example-workspace",
+              "timezone": "UTC",
+              "role": "owner"
+            },
+            "modules": {},
+            "capabilities": []
+          },
+          "meta": {
+            "requestId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          }
+        }
+      },
+      "WorkspaceNotFound": {
+        "summary": "Synthetic unauthorized workspace response",
+        "value": {
+          "error": {
+            "code": "WORKSPACE_NOT_FOUND",
+            "message": "Workspace was not found.",
+            "requestId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+          }
+        }
+      }
+    }
+  }
+}

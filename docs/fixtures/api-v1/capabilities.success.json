@@ -1,0 +1,16 @@
+{
+  "data": {
+    "workspace": {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "Example Workspace",
+      "slug": "example-workspace",
+      "timezone": "UTC",
+      "role": "owner"
+    },
+    "modules": {},
+    "capabilities": []
+  },
+  "meta": {
+    "requestId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  }
+}

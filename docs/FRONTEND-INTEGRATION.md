@@ -1,7 +1,12 @@
 # Backend integration contract for John's MK Nails frontend
 
-Status: reviewed integration plan; future `/api/v1` and `/public/v1` routes below
-are proposed, not implemented endpoints. No changes were made to John's repository.
+Status: reviewed integration plan. The initial authenticated session and
+workspace-capabilities handlers are implemented in source but are not configured
+against Clerk or Supabase yet. Other `/api/v1` and all `/public/v1` routes remain
+proposed. No changes were made to John's repository.
+
+The initial API schemas and synthetic fixtures are in
+[openapi.json](./openapi.json) and [docs/fixtures/api-v1/](./fixtures/api-v1/).
 
 ## Repository responsibilities
 
@@ -42,6 +47,9 @@ cross-origin API for the public website.
 | GET | `/api/square/callback` | Square OAuth redirect; browser-bound state validation |
 | GET | `/api/square/status` | Connection status for the current browser |
 | GET | `/api/square/appointments?range=today\|week&location=...` | Read-only appointments for the authorized seller |
+| GET | `/api/square/appointments?range=custom&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&location=...` | Read-only calendar range; end date is exclusive, maximum 42 days, dates use the selected location timezone |
+| GET | `/api/v1/session` | Clerk-verified identity and only that user's active database memberships; requires configured Clerk and PostgreSQL |
+| GET | `/api/v1/workspaces/{workspaceId}/capabilities` | Requires an active database membership; currently returns no enabled modules or capabilities |
 
 Appointment permissions: `MERCHANT_PROFILE_READ`, `APPOINTMENTS_READ`,
 `APPOINTMENTS_ALL_READ`, `ITEMS_READ`. Missing scopes return
@@ -51,21 +59,23 @@ Appointment permissions: `MERCHANT_PROFILE_READ`, `APPOINTMENTS_READ`,
 Current appointment success response includes `locations`, selected `location`,
 `appointments`, `range`, `start`, `end`, `syncedAt` and optional `warning`.
 Each appointment has `id`, `startAt`, `status`, `durationMinutes`, and `services`.
-No client names or contact details are currently returned. Today's boundaries
-and the seven-day window use the selected location's timezone.
+No client names or contact details are currently returned. Today's boundaries, the seven-day window, and custom calendar ranges use the
+selected location's timezone. Custom ranges have an exclusive end date and are
+capped at 42 days. The combined content/appointments calendar uses this read-only
+range for the selected month; it does not persist Square appointments locally.
 
 Current errors are `{ "code": "...", "error": "Readable message" }` where a code
 is supplied. Preserve this compatibility until a versioned API is introduced.
 
-## Proposed versioned private API
+## Versioned private API
 
 All routes require a provider-verified app session and active membership in the
 specified workspace. IDs identify resources; they do not grant access.
 
-| Method | Proposed route | Purpose |
+| Method | Route | Purpose |
 | --- | --- | --- |
-| GET | `/api/v1/session` | Current identity and authorized workspace memberships |
-| GET | `/api/v1/workspaces/{id}/capabilities` | Enabled modules, granted capabilities and integration health |
+| GET | `/api/v1/session` | Implemented in source: current identity and authorized workspace memberships |
+| GET | `/api/v1/workspaces/{id}/capabilities` | Implemented in source: membership check; modules/integrations are not enabled |
 | GET | `/api/v1/workspaces/{id}/appointments` | Time-bounded, paginated appointments with sync freshness |
 | POST | `/api/v1/workspaces/{id}/appointment-proposals` | Draft an explicit proposed provider change; no execution |
 | POST | `/api/v1/workspaces/{id}/appointment-proposals/{proposalId}/approve` | Approve the exact unexpired proposal; queue controlled execution |
@@ -76,9 +86,9 @@ specified workspace. IDs identify resources; they do not grant access.
 | GET | `/api/v1/workspaces/{id}/integrations` | Provider health and scopes; never raw credentials |
 | GET | `/api/v1/workspaces/{id}/social/insights` | Authorized, timestamped metrics with availability status |
 
-Proposed successes use `{ "data": ..., "meta": { "requestId": "..." } }`.
+Initial v1 successes and future routes use `{ "data": ..., "meta": { "requestId": "..." } }`.
 Paginated collections add `meta.nextCursor`; freshness includes `lastSyncedAt`,
-provider timestamps and a sync state. Proposed errors use
+provider timestamps and a sync state. Errors use
 `{ "error": { "code": "...", "message": "...", "requestId": "..." } }`.
 These conventions follow BORG's structured-error pattern without changing the
 existing Square routes during this planning phase.
