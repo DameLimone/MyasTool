@@ -24,6 +24,12 @@ const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" f
 const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const app = document.querySelector('#app');
 let state, db;
+let squareStatus = { error: 'Checking Square connection…' };
+let squareBusy = false;
+let appointmentState = { loading: false, data: null, error: null, code: null };
+let appointmentRange = 'today';
+let appointmentLocation = '';
+let appointmentRequest = 0;
 let view = 'overview';
 let filter = 'all';
 let search = '';
@@ -76,16 +82,16 @@ function postCard(post) {
     <div class="post-footer"><span>${icon(post.status === 'draft' ? 'edit' : 'calendar')}${post.status === 'published' ? 'Publication confirmed' : dateLabel(post.date, { hour: 'numeric', minute: '2-digit' })}</span>${post.approval === 'pending' ? '<span class="approval-dot" title="Waiting for Mya">Awaiting approval</span>' : ''}</div></div></button>`;
 }
 function render() {
-  const titles = { overview: 'Home', posts: 'All posts', calendar: 'Content calendar', media: 'Media library', approvals: 'Mya’s approvals', settings: 'Studio settings', help: 'Help me navigate' };
+  const titles = { overview: 'Home', appointments: 'Appointments', posts: 'All posts', calendar: 'Content calendar', media: 'Media library', approvals: 'Mya’s approvals', settings: 'Studio settings', help: 'Help me navigate' };
   app.innerHTML = `<aside class="sidebar">
     <a class="brand" href="#" data-view="overview"><span class="brand-mark">m<span>✧</span></span><span>mya<span class="brand-sub">CONTENT STUDIO</span></span></a>
     <div class="workspace"><span class="workspace-avatar">M</span><div>Mya’s salon<small>Workspace for you two</small></div><span class="workspace-dot"></span></div>
     <p class="nav-label">YOUR STUDIO</p><nav aria-label="Main navigation">
-    ${[['overview', 'grid', 'Overview'], ['posts', 'edit', 'All posts'], ['calendar', 'calendar', 'Calendar'], ['media', 'image', 'Media library'], ['approvals', 'heart', 'Approvals']].map(([key, image, title]) => `<button data-view="${key}" class="nav-item ${view === key ? 'active' : ''}" ${view === key ? 'aria-current="page"' : ''}>${icon(image)}${title}${key === 'approvals' && state.posts.some((p) => p.approval === 'pending') ? `<span class="nav-count">${state.posts.filter((p) => p.approval === 'pending').length}</span>` : ''}</button>`).join('')}</nav>
+    ${[['overview', 'grid', 'Overview'], ['appointments', 'clock', 'Appointments'], ['posts', 'edit', 'All posts'], ['calendar', 'calendar', 'Calendar'], ['media', 'image', 'Media library'], ['approvals', 'heart', 'Approvals']].map(([key, image, title]) => `<button data-view="${key}" aria-label="${title}" class="nav-item ${view === key ? 'active' : ''}" ${view === key ? 'aria-current="page"' : ''}>${icon(image)}${key === 'appointments' ? '<span class="appointment-nav-label">Appointments</span>' : title}${key === 'approvals' && state.posts.some((p) => p.approval === 'pending') ? `<span class="nav-count">${state.posts.filter((p) => p.approval === 'pending').length}</span>` : ''}</button>`).join('')}</nav>
     <div class="sidebar-bottom"><button class="nav-item ${view === 'settings' ? 'active' : ''}" data-view="settings">${icon('settings')}Studio settings</button><div class="profile"><span class="profile-avatar">M</span><div>Mya’s workspace<small>Local prototype</small></div><span class="local-dot" title="Saved in this browser"></span></div></div>
   </aside>
   <div class="main-shell"><header class="topbar"><div class="breadcrumb">Your studio<span>/</span><strong>${titles[view]}</strong></div><div class="topbar-right"><button class="button secondary help-button" data-help aria-current="${view === 'help' ? 'page' : 'false'}">Help me navigate</button><span class="local-label"><i></i> Saved in this browser</span><button class="avatar-button" data-view="settings" aria-label="Studio settings">M</button></div></header>
-  <main tabindex="-1">${view === 'overview' ? overview() : view === 'posts' ? postsPage() : view === 'calendar' ? calendarPage() : view === 'media' ? mediaPage() : view === 'approvals' ? approvalsPage() : view === 'help' ? helpPage() : settingsPage()}</main>
+  <main tabindex="-1">${view === 'overview' ? overview() : view === 'appointments' ? appointmentsPage() : view === 'posts' ? postsPage() : view === 'calendar' ? calendarPage() : view === 'media' ? mediaPage() : view === 'approvals' ? approvalsPage() : view === 'help' ? helpPage() : settingsPage()}</main>
   <footer class="page-footer"><span>Made for Mya, with a little extra care.</span><span>YOUR WORK. BEAUTIFULLY SHARED. ${icon('spark')}</span></footer></div>`;
 }
 function pageHeading(eyebrow, title, description, action = `<button class="button primary" data-new>${icon('plus')}Create a post</button>`) {
@@ -95,7 +101,8 @@ function overview() {
   const pending = state.posts.filter((post) => post.approval === 'pending');
   const drafts = state.posts.filter((post) => post.status === 'draft');
   return `<div class="calm-home">${pageHeading('YOUR SPACE TO TAKE A BREATH', 'Welcome back, Mya.', 'One thing at a time. Start wherever you need.')}
-    <section class="quick-actions" aria-label="Quick actions">${[
+    ${squarePanel()}<section class="quick-actions" aria-label="Quick actions">${[
+      ['data-view="appointments"', 'clock', 'Salon appointments', 'Today and the next seven days'],
       ['data-status-view="draft"', 'edit', 'Continue a draft', `${drafts.length} saved ideas`],
       ['data-view="calendar"', 'calendar', 'See my plan', 'Open the calendar'],
       ['data-view="media"', 'image', 'Add photos or videos', 'Open your media library'],
@@ -144,8 +151,83 @@ function approvalsPage() {
   const pending = state.posts.filter((post) => post.approval === 'pending');
   return `${pageHeading('ONE LAST LOVING LOOK', 'Ready for Mya’s eye', 'Review the caption and preview, then approve when every detail feels right.')}<p class="page-note">Local review only: this prototype does not send notifications or verify the reviewer’s identity.</p><div class="post-grid full-grid">${pending.map(postCard).join('') || empty('All caught up, beautifully', 'Posts that need a review will appear here.')}</div>`;
 }
+function squarePanel() {
+  const s = squareStatus;
+  return `<section class="settings-panel square-panel" aria-label="Square connection"><h2>MK Manikure Lounge · Square</h2><p role="status">${esc(s.error || (s.connected ? `Connected to ${s.merchant} · ${s.environment}` : s.configured === false ? 'Square connection setup is still being completed. Please try again once setup is finished.' : s.reconnect ? 'Connection expired. Sign in to Square again.' : 'Square is not connected.'))}</p><div class="square-actions"><button class="button primary" data-square-connect ${squareBusy || s.configured === false ? 'disabled' : ''}>${squareBusy ? 'Opening Square…' : s.connected ? 'Reconnect Square' : 'Connect Square'}</button><button class="button secondary" data-square-refresh>Check connection</button><a class="button secondary" href="https://book.squareup.com/appointments/suimgpl7mwpdmz/location/LY4J7GWRW6KPP/services?buttonTextColor=ffffff&amp;color=212121&amp;locale=en&amp;referrer=so" target="_blank" rel="noopener noreferrer">Open salon booking</a></div><p>Sign in on Square to connect your account in this browser. Other devices need their own connection. Booking changes, waitlist reassignment, and customer messages are not automated.</p>${s.expiresAt ? `<small>Authorization expires ${esc(dateLabel(s.expiresAt))}. The Tool renews authorization when you check the connection.</small>` : ''}</section>`;
+}
+function appointmentsPage() {
+  const { loading, data, error, code } = appointmentState;
+  const timezone = data?.location?.timezone || 'UTC';
+  const format = (date, options) => new Intl.DateTimeFormat('en-US', { timeZone: timezone, ...options }).format(new Date(date));
+  const reconnect = ['APPOINTMENT_PERMISSION_REQUIRED', 'SQUARE_CONNECTION_REQUIRED', 'SQUARE_APPOINTMENTS_UNAVAILABLE'].includes(code);
+  return `${pageHeading('YOUR SALON DAY', 'Appointments', 'Your Square schedule, with room to breathe.', '')}
+    <section class="home-panel appointments-panel" aria-label="Square appointments" aria-busy="${loading}">
+    <div class="appointment-controls"><div class="appointment-ranges" aria-label="Appointment date range">${[['today', 'Today'], ['week', 'Next seven days']].map(([key, label]) => `<button class="button ${appointmentRange === key ? 'primary' : 'secondary'}" data-appointment-range="${key}" aria-pressed="${appointmentRange === key}" ${loading ? 'disabled' : ''}>${label}</button>`).join('')}</div>
+    ${data?.locations?.length ? `<label class="appointment-location">Location<select id="appointment-location" ${loading ? 'disabled' : ''}>${data.locations.map(l => `<option value="${esc(l.id)}" ${l.id === data.location?.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>` : ''}
+    <button class="button secondary" data-appointments-refresh ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : 'Refresh appointments'}</button></div>
+    <p class="page-note">Live from Square · Read-only · Canceled and declined appointments are excluded.</p>
+    ${loading ? '<p role="status">Loading appointments from Square…</p>' : error ? `<div class="appointment-message" role="alert"><p>${esc(error)}</p>${reconnect ? `<p>Allow the Tool to read appointments and service names. It cannot change bookings or send messages.</p><button class="button primary" data-square-connect ${squareBusy ? 'disabled' : ''}>${squareBusy ? 'Opening Square…' : code === 'SQUARE_CONNECTION_REQUIRED' ? 'Connect Square' : 'Allow appointment access'}</button>` : ''}</div>` : data ? `
+    ${data.warning ? `<p class="appointment-message" role="status">${esc(data.warning)}</p>` : ''}
+    ${data.location ? `<div class="section-heading"><h2>${esc(data.location.name)}</h2><span>${esc(timezone)}</span></div><p>${data.appointments.length} ${data.appointments.length === 1 ? 'appointment' : 'appointments'} · ${esc(format(data.start, { month: 'short', day: 'numeric' }))}${appointmentRange === 'week' ? `–${esc(format(new Date(Date.parse(data.end) - 1), { month: 'short', day: 'numeric' }))}` : ''}</p>` : ''}
+    <div class="appointment-list">${data.appointments.map(a => `<article class="appointment-card"><div class="appointment-time"><strong>${esc(format(a.startAt, { hour: 'numeric', minute: '2-digit' }))}</strong><span>${esc(format(a.startAt, { weekday: 'short', month: 'short', day: 'numeric' }))}</span></div><div class="appointment-service"><h3>${esc(a.services.join(' + ') || 'Service details unavailable')}</h3><p>${a.durationMinutes ? `${a.durationMinutes} min` : 'Duration unavailable'}</p></div><span class="badge neutral">${esc(({ ACCEPTED: 'Confirmed', PENDING: 'Pending', NO_SHOW: 'No-show' })[a.status] || a.status.replaceAll('_', ' ').toLowerCase())}</span></article>`).join('') || (data.location ? '<p class="appointment-empty">No appointments in this date range.</p>' : '')}</div>
+    <small>Last checked ${esc(new Date(data.syncedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}. Appointment details are not saved in this browser.</small>` : ''}
+    </section>`;
+}
+async function loadAppointments() {
+  const request = ++appointmentRequest;
+  const locations = appointmentState.data?.locations;
+  appointmentState = { loading: true, data: locations ? { locations, location: appointmentState.data.location } : null, error: null, code: null };
+  render();
+  try {
+    const params = new URLSearchParams({ range: appointmentRange, ...(appointmentLocation ? { location: appointmentLocation } : {}) });
+    const response = await fetch(`/api/square/appointments?${params}`, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const data = await response.json();
+    if (request !== appointmentRequest) return;
+    if (!response.ok) appointmentState = { loading: false, data: null, error: data.error || 'Appointments could not be loaded.', code: data.code };
+    else {
+      appointmentLocation = data.location?.id || '';
+      appointmentState = { loading: false, data, error: null, code: null };
+    }
+  } catch {
+    if (request !== appointmentRequest) return;
+    appointmentState = { loading: false, data: null, error: 'Cannot reach Square appointments. Check your connection and try again.', code: null };
+  }
+  if (view === 'appointments') render();
+}
+document.addEventListener('click', async event => {
+  const range = event.target.closest('[data-appointment-range]');
+  if (range) { appointmentRange = range.dataset.appointmentRange; await loadAppointments(); }
+  else if (event.target.closest('[data-appointments-refresh]')) await loadAppointments();
+});
+document.addEventListener('change', async event => {
+  if (event.target.id === 'appointment-location') { appointmentLocation = event.target.value; await loadAppointments(); }
+});
+async function squareRequest(path, method = 'GET') {
+  const response = await fetch(`/api/square/${path}`, { method, credentials: 'same-origin', headers: { Accept: 'application/json' } });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Square is unavailable.');
+  return data;
+}
+async function refreshSquare() {
+  try {
+    const session = await squareRequest('session', 'POST');
+    squareStatus = session.configured ? await squareRequest('status') : session;
+  } catch (error) { squareStatus = { error: error.message === 'Failed to fetch' ? 'Cannot reach the Square connection service. Please try again.' : error.message }; }
+  render();
+}
+document.addEventListener('click', async (event) => {
+  if (event.target.closest('[data-square-refresh]')) await refreshSquare();
+  if (!event.target.closest('[data-square-connect]') || squareBusy) return;
+  squareBusy = true; render();
+  try {
+    const session = await squareRequest('session', 'POST');
+    if (!session.configured) throw new Error(session.error || 'Square connection setup is still being completed.');
+    const data = await squareRequest('connect', 'POST');
+    window.location.assign(data.url);
+  } catch (error) { squareStatus = { error: error.message }; squareBusy = false; render(); }
+});
 function settingsPage() {
-  return `${pageHeading('MAKE YOURSELF AT HOME', 'Your studio, your way', 'The essentials for now. The rest, shaped around Mya.', '')}<section class="settings-panel"><h2>Saved hashtags</h2><p>A starting point for your captions. Add these from the post editor.</p><form id="hashtags-form"><label for="saved-hashtags">Your go-to collection</label><textarea id="saved-hashtags" rows="3">${esc(state.hashtags)}</textarea><button class="button primary" type="submit">Save hashtags</button></form></section><section class="settings-panel"><h2>Platform connections</h2><p>These are prototype preview options. No accounts are connected and nothing publishes automatically.</p>${platforms.map((platform) => `<div class="connection">${platformTag(platform)}<span class="badge neutral">Not connected · Coming later</span></div>`).join('')}</section><section class="settings-panel"><h2>A studio in the making</h2><p>Mya Studio is a working name. Final branding, caption languages, platform choices, and hosting will be settled with Mya.</p><p>All content is stored on this device in this browser. No cloud backup or multi-user access is included.</p></section>`;
+  return `${pageHeading('MAKE YOURSELF AT HOME', 'Your studio, your way', 'The essentials for now. The rest, shaped around Mya.', '')}${squarePanel()}<section class="settings-panel"><h2>Saved hashtags</h2><p>A starting point for your captions. Add these from the post editor.</p><form id="hashtags-form"><label for="saved-hashtags">Your go-to collection</label><textarea id="saved-hashtags" rows="3">${esc(state.hashtags)}</textarea><button class="button primary" type="submit">Save hashtags</button></form></section><section class="settings-panel"><h2>Platform connections</h2><p>These are prototype preview options. No accounts are connected and nothing publishes automatically.</p>${platforms.map((platform) => `<div class="connection">${platformTag(platform)}<span class="badge neutral">Not connected · Coming later</span></div>`).join('')}</section><section class="settings-panel"><h2>A studio in the making</h2><p>Mya Studio is a working name. Final branding, caption languages, platform choices, and hosting will be settled with Mya.</p><p>All content is stored on this device in this browser. No cloud backup or multi-user access is included.</p></section>`;
 }
 function openEditor(id, mediaId, date) {
   previousFocus = document.activeElement;
@@ -223,6 +305,7 @@ document.addEventListener('click', async (event) => {
       filter = 'all'; search = ''; render();
       window.scrollTo({ top: 0 });
       document.querySelector('main').focus({ preventScroll: true });
+      if (view === 'appointments') await loadAppointments();
     } else if (button.hasAttribute('data-new')) openEditor(null, button.dataset.media);
     else if (button.dataset.edit) openEditor(button.dataset.edit);
     else if (button.hasAttribute('data-close')) closeEditor();
@@ -310,6 +393,13 @@ try {
   state = await loadState(db);
   if (!state) { state = seedState(); await saveState(db, state); }
   render();
+  const result = new URLSearchParams(location.search).get('square');
+  if (result) {
+    const messages = { connected: 'Square authorization saved. Checking the connection…', declined: 'Square authorization was canceled.', 'invalid-state': 'Square sign-in expired or was already used. Please try again.', 'wrong-seller': 'This workspace is already linked to another Square seller.', 'missing-code': 'Square did not return an authorization code.', failed: 'Square connection failed. Check server configuration and try again.' };
+    notify(messages[result] || 'Square sign-in could not be completed.', result !== 'connected');
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+  await refreshSquare();
 } catch (error) {
   console.error(error);
   app.innerHTML = `<main class="startup-error"><h1>Your studio couldn’t open its storage.</h1><p>This prototype needs browser storage to keep your work safe. Enable site storage and reload.</p><p>${esc(error.message)}</p><button class="button primary" onclick="location.reload()">Try again</button></main>`;
