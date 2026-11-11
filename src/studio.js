@@ -3,6 +3,7 @@ import { platforms, statusNames, seedState, localDate, validatePost, captionFor 
 import { openStore, loadState, saveState } from './store.js';
 import {privateFetch,getApprovedSession} from './auth-session.js';
 import {mountLiveSettings} from './live-settings.js';
+import {calendarWindow,renderBusinessCalendar} from './business-calendar.js';
 
 const icons = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -36,6 +37,9 @@ let view = 'overview';
 let filter = 'all';
 let search = '';
 let calendarDate = new Date();
+let calendarSelectedDate = localDate();
+let calendarAppointmentState = {loading:false,data:null,error:null,code:null};
+let calendarAppointmentRequest = 0;
 const urls = new Map();
 let activePost;
 let previewPlatform = 'Instagram';
@@ -85,7 +89,7 @@ function postCard(post) {
 }
 function render() {
   if(!getApprovedSession())return;
-  const titles = { overview: 'Home', appointments: 'Salon appointments', posts: 'All posts', calendar: 'Social content calendar', media: 'Media library', approvals: 'Mya’s approvals', settings: 'Studio settings', help: 'Help me navigate' };
+  const titles = { overview: 'Home', appointments: 'Salon appointments', posts: 'All posts', calendar: 'Content & appointments calendar', media: 'Media library', approvals: 'Mya’s approvals', settings: 'Studio settings', help: 'Help me navigate' };
   app.innerHTML = `<aside class="sidebar">
     <a class="brand" href="#" data-view="overview"><span class="brand-mark">m<span>✧</span></span><span>mya<span class="brand-sub">CONTENT STUDIO</span></span></a>
     <div class="workspace"><span class="workspace-avatar">M</span><div>Mya’s salon<small>Workspace for you two</small></div><span class="workspace-dot"></span></div>
@@ -140,17 +144,23 @@ function postsPage() {
   return `${pageHeading('FROM FIRST IDEA TO FINAL DETAIL', 'Your content collection', 'Draft it. Make it yours. Share it when the time is right.')}<div class="collection-toolbar">${filterBar()}<input type="search" id="post-search" placeholder="Find a post…" aria-label="Search posts" value="${esc(search)}" /></div><div class="post-grid full-grid" id="posts-grid">${filteredPosts().map(postCard).join('') || empty('No posts here just yet', 'New ideas and confirmed live posts will each have their own place.')}</div>`;
 }
 function calendarPage() {
-  const year = calendarDate.getFullYear(), month = calendarDate.getMonth();
-  const first = new Date(year, month, 1).getDay();
-  const days = new Date(year, month + 1, 0).getDate();
-  return `${pageHeading('A LITTLE RHYTHM FOR YOUR CONTENT', 'Room for what’s next', 'Plan a beautiful month. Click any day to start a post.')}<div class="calendar-panel"><div class="calendar-toolbar"><h2>${calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2><div><button class="button secondary" data-today>Today</button><button class="icon-button reverse" data-month="-1" aria-label="Previous month">${icon('chevron')}</button><button class="icon-button" data-month="1" aria-label="Next month">${icon('chevron')}</button></div></div><div class="calendar-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => `<div class="weekday">${day}</div>`).join('')}${Array.from({ length: first }, () => '<div class="calendar-cell outside"></div>').join('')}${Array.from({ length: days }, (_, index) => {
-    const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`;
-    return `<div class="calendar-cell ${date === localDate() ? 'is-today' : ''}"><button class="day-number" data-date="${date}" aria-label="Create post for ${date}">${index + 1}</button>${state.posts.filter((post) => post.date?.startsWith(date)).map((post) => `<button class="calendar-post ${post.status}" data-edit="${esc(post.id)}"><i></i>${esc(post.title)}<small>${statusNames[post.status]}${post.sample ? ' · Sample' : ''}</small></button>`).join('')}</div>`;
-  }).join('')}</div><div class="calendar-legend"><span><i class="legend-dot planned"></i>Planned</span><span><i class="legend-dot draft"></i>Draft</span><span><i class="legend-dot published"></i>Confirmed published</span></div></div><p class="page-note">On smaller screens, swipe across the calendar to see the whole week.</p><p class="page-note">${icon('clock')}All times are in your device’s local timezone. Planning does not schedule automatic publishing.</p>`;
+  return renderBusinessCalendar({date:calendarDate,selectedDate:calendarSelectedDate,posts:state.posts,appointmentState:calendarAppointmentState});
 }
-function mediaPage() {
-  return `${pageHeading('THE DETAILS WORTH KEEPING', 'Your little library of beautiful', 'Mya’s work, ready for its next moment in the spotlight.', `<button class="button primary" data-upload>${icon('upload')}Upload media</button>`)}<div class="notice">${icon('heart')}<div><strong>Beautiful work. Thoughtful sharing.</strong><p>Confirm client permission before publishing. The supplied photos are not marked as approved.</p></div></div><input hidden type="file" id="media-upload" accept="image/*,video/*" multiple /><div class="media-grid">${state.media.map((media) => `<article class="media-card"><div class="library-photo">${mediaMarkup(media, '', true)}<span class="sample-badge">${media.blob ? media.type.startsWith('video/') ? 'Video' : 'Photo' : 'Mya’s work'}</span></div><div class="media-card-body"><h3>${esc(media.name)}</h3><label>Client permission<select data-consent="${media.id}" aria-label="Client permission for ${esc(media.name)}"><option value="unknown" ${media.consent === 'unknown' ? 'selected' : ''}>Not confirmed</option><option value="approved" ${media.consent === 'approved' ? 'selected' : ''}>Approved for use</option><option value="declined" ${media.consent === 'declined' ? 'selected' : ''}>Do not use</option></select></label><div class="media-actions"><button class="text-button" data-new data-media="${media.id}">Create a post ${icon('arrow')}</button><button class="icon-button" data-download="${media.id}" aria-label="Download ${esc(media.name)}">${icon('download')}</button></div></div></article>`).join('')}</div><p class="page-note">Uploads stay in this browser only. Keep original files backed up elsewhere.</p>`;
+async function loadCalendarAppointments() {
+  const request=++calendarAppointmentRequest;
+  calendarAppointmentState={loading:true,data:null,error:null,code:null};
+  if(view==='calendar')render();
+  try {
+    const params=new URLSearchParams({range:'custom',...calendarWindow(calendarDate),...(appointmentLocation?{location:appointmentLocation}:{})});
+    const response=await privateFetch(`/api/square/appointments?${params}`,{credentials:'same-origin'});
+    const data=await response.json();
+    if(request!==calendarAppointmentRequest)return;
+    calendarAppointmentState=response.ok?{loading:false,data,error:null,code:null}:{loading:false,data:null,error:data.error||'Appointments could not be loaded.',code:data.code};
+    if(response.ok)appointmentLocation=data.location?.id||'';
+  }catch {if(request!==calendarAppointmentRequest)return;calendarAppointmentState={loading:false,data:null,error:'Cannot reach Square appointments. Try refreshing.',code:null};}
+  if(view==='calendar')render();
 }
+
 function approvalsPage() {
   const pending = state.posts.filter((post) => post.approval === 'pending');
   return `${pageHeading('ONE LAST LOVING LOOK', 'Ready for Mya’s eye', 'Review the caption and preview, then approve when every detail feels right.')}<p class="page-note">Content reviews stay in this browser. Notifications and shared review history are not connected yet.</p><div class="post-grid full-grid">${pending.map(postCard).join('') || empty('All caught up, beautifully', 'Posts that need a review will appear here.')}</div>`;
@@ -205,6 +215,7 @@ document.addEventListener('click', async event => {
 });
 document.addEventListener('change', async event => {
   if (event.target.id === 'appointment-location') { appointmentLocation = event.target.value; await loadAppointments(); }
+  if(event.target.id==='calendar-location'){appointmentLocation=event.target.value;await loadCalendarAppointments();}
 });
 async function squareRequest(path, method = 'GET') {
   const response = await privateFetch(`/api/square/${path}`, { method, credentials: 'same-origin' });
@@ -218,6 +229,10 @@ async function refreshSquare() {
     squareStatus = session.configured ? await squareRequest('status') : session;
   } catch (error) { squareStatus = { error: error.message === 'Failed to fetch' ? 'Cannot reach the Square connection service. Please try again.' : error.message }; }
   render();
+  if(squareStatus.connected){
+    if(view==='appointments')await loadAppointments();
+    else if(view==='calendar')await loadCalendarAppointments();
+  }
 }
 document.addEventListener('click', async (event) => {
   if (event.target.closest('[data-square-refresh]')) await refreshSquare();
@@ -227,6 +242,7 @@ document.addEventListener('click', async (event) => {
     const session = await squareRequest('session', 'POST');
     if (!session.configured) throw new Error(session.error || 'Square connection setup is still being completed.');
     const data = await squareRequest('connect', 'POST');
+    sessionStorage.setItem('mya-square-return-view',view==='calendar'?'calendar':'appointments');
     window.location.assign(data.url);
   } catch (error) { squareStatus = { error: error.message }; squareBusy = false; render(); }
 });
@@ -310,13 +326,16 @@ document.addEventListener('click', async (event) => {
       window.scrollTo({ top: 0 });
       document.querySelector('main').focus({ preventScroll: true });
       if (view === 'appointments') await loadAppointments();
+      else if(view==='calendar')await loadCalendarAppointments();
     } else if (button.hasAttribute('data-new')) openEditor(null, button.dataset.media);
     else if (button.dataset.edit) openEditor(button.dataset.edit);
     else if (button.hasAttribute('data-close')) closeEditor();
     else if (button.dataset.filter) { filter = button.dataset.filter; render(); }
     else if (button.dataset.statusView) { view = 'posts'; filter = button.dataset.statusView; search = ''; render(); }
-    else if (button.dataset.month) { calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + Number(button.dataset.month), 1); render(); }
-    else if (button.hasAttribute('data-today')) { calendarDate = new Date(); render(); }
+    else if (button.dataset.month) { calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + Number(button.dataset.month), 1); calendarSelectedDate=localDate(calendarDate); await loadCalendarAppointments(); }
+    else if (button.hasAttribute('data-today')) { calendarDate = new Date(); calendarSelectedDate=localDate(); await loadCalendarAppointments(); }
+    else if(button.dataset.calendarDay){calendarSelectedDate=button.dataset.calendarDay;render();}
+    else if(button.hasAttribute('data-calendar-refresh'))await loadCalendarAppointments();
     else if (button.dataset.date) openEditor(null, null, button.dataset.date);
     else if (button.hasAttribute('data-upload')) document.querySelector('#media-upload').click();
     else if (button.dataset.download) downloadMedia(button.dataset.download);
@@ -401,6 +420,7 @@ try {
   render();
   const result = new URLSearchParams(location.search).get('square');
   if (result) {
+    if(result==='connected'){view=sessionStorage.getItem('mya-square-return-view')==='calendar'?'calendar':'appointments';appointmentRange='week';sessionStorage.removeItem('mya-square-return-view');render();}
     const messages = { connected: 'Square authorization saved. Checking the connection…', declined: 'Square authorization was canceled.', 'invalid-state': 'Square sign-in expired or was already used. Please try again.', 'wrong-seller': 'This workspace is already linked to another Square seller.', 'missing-code': 'Square did not return an authorization code.', failed: 'Square connection failed. Check server configuration and try again.' };
     notify(messages[result] || 'Square sign-in could not be completed.', result !== 'connected');
     history.replaceState(null, '', location.pathname + location.hash);

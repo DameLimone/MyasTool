@@ -19,11 +19,12 @@ active database membership before returning workspace data. Capabilities are
 currently empty. There are no appointments, notifications, client records,
 booking changes, or social insights in `/api/v1` yet.
 
-**Integration is not live-ready yet.** The MyasTool Supabase project is
-provisioned and its database schema/defaults are applied. This does not configure
-the Vercel runtime database role, Clerk credentials or frontend sign-in UI. The
-source routes fail closed until that backend environment and owner membership
-are configured. Do not treat this as a deployed, usable settings/sign-in screen.
+The private Tool is deployed with Clerk sign-in, approved workspace access,
+Supabase runtime storage and owner/admin settings edits. Owner bootstrap is tied
+to the verified email `dambienb@gmail.com`. Owner-only membership controls are
+available at `GET, POST /api/v1/workspaces/{workspaceId}/members`.
+Clerk still uses a development instance; see [App access](APP-ACCESS.md) for launch
+limitations. The separate public booking frontend has not been integrated.
 
 The API implementation is in this repository (`DameLimone/MyasTool`). John's
 website is in `stonksmasters/mknails`; no changes to that repository are part of

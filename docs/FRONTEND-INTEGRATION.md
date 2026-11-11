@@ -1,9 +1,10 @@
 # Backend integration contract for John's MK Nails frontend
 
-Status: reviewed integration plan. The initial authenticated session and
-workspace-capabilities handlers are implemented in source but are not configured
-against Clerk or Supabase yet. Other `/api/v1` and all `/public/v1` routes remain
-proposed. No changes were made to John's repository.
+Status: the private Tool is deployed with Clerk sign-in, approved memberships,
+Supabase-backed scheduling settings and owner access management. All `/public/v1`
+booking routes remain proposed. Clerk production-instance setup and notification
+delivery remain outstanding. See [App access](APP-ACCESS.md). No changes were made
+to John's repository.
 
 The initial API schemas and synthetic fixtures are in
 [openapi.json](./openapi.json) and [docs/fixtures/api-v1/](./fixtures/api-v1/).
