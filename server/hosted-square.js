@@ -52,6 +52,13 @@ export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now
     if (!response.ok) {
       const error = new Error('Square request failed');
       error.status = response.status;
+      // A rejected booking query is not a revoked OAuth grant. Never log or
+      // return provider bodies; inspect only known authentication error codes.
+      let failure;
+      try { failure = await response.json(); } catch { /* response can be empty */ }
+      const codes = [failure?.error, ...(Array.isArray(failure?.errors) ? failure.errors.map(item => item?.code) : [])];
+      error.tokenRejected = response.status === 401 || (path === '/oauth2/token' && response.status === 400
+        && codes.some(code => ['invalid_grant','INVALID_GRANT','ACCESS_TOKEN_EXPIRED','ACCESS_TOKEN_REVOKED'].includes(code)));
       throw error;
     }
     return response.json();
@@ -130,11 +137,12 @@ export function createHostedSquareHandler(env, { fetcher = fetch, now = Date.now
       // Never return Square's response bodies, codes, or credentials to the browser.
       if (path === '/api/square/callback') return back('failed');
       if (path === '/api/square/appointments' && error.status === 403) return json(403, { code: 'SQUARE_APPOINTMENTS_UNAVAILABLE', error: 'Square did not allow appointment access. Check the account’s Appointments access and subscription, or reconnect to update permissions.' });
-      if ([400, 401, 403].includes(error.status)) {
+      if (error.tokenRejected) {
         cookie(SESSION, '', 0);
         if (path === '/api/square/appointments') return json(401, { code: 'SQUARE_CONNECTION_REQUIRED', error: 'Your Square authorization needs to be renewed. Reconnect Square to continue.' });
         return json(200, { connected: false, reconnect: true, environment: env.SQUARE_ENVIRONMENT });
       }
+      if (path === '/api/square/appointments' && error.status === 400) return json(502, { code: 'SQUARE_REQUEST_REJECTED', error: 'Square could not load the requested appointments. Please try refreshing. Your connection has been kept.' });
       return json(502, { error: path.endsWith('/appointments') ? 'Appointments could not be loaded from Square. Please try again.' : 'Unable to verify Square right now. Please try again.' });
     }
   };

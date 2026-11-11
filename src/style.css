@@ -222,16 +222,3 @@ main:focus{outline:none}
 .appointment-list{margin-bottom:20px}.appointment-empty{padding:25px 0}.appointments-panel small{line-height:1.7}
 @media(max-width:480px){.appointment-card{gap:12px;flex-wrap:wrap}.appointment-time{min-width:105px}.appointment-service{flex-basis:45%}.appointment-location{width:100%}.sidebar nav .nav-item{font-size:8.5px;flex:1;width:auto;min-width:0;overflow-wrap:anywhere}.sidebar nav{gap:0}}
 @media(max-width:480px){.appointment-nav-label{font-size:0}.appointment-nav-label::after{content:'Appts';font-size:8.5px}}
-.calendar-filters{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 16px}
-.calendar-filters .calendar-refresh{margin-left:auto}
-.calendar-message{margin-bottom:16px}
-.calendar-message p:first-child{margin-top:0}
-.calendar-panel{overflow-x:auto}
-.calendar-grid{min-width:720px}
-.calendar-cell{overflow:hidden}
-.calendar-appointment{display:grid;gap:2px;margin:5px 0;padding:5px 6px;border-left:3px solid #6f8790;border-radius:4px;background:#edf2f3;color:#394b50;font-size:10px;line-height:1.35}
-.calendar-appointment strong,.calendar-appointment span,.calendar-appointment small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.calendar-appointment span{font-size:10px}
-.calendar-appointment small{font-size:9px;color:#62757a}
-.legend-dot.appointment{background:#6f8790}
-@media(max-width:760px){.calendar-filters{gap:7px}.calendar-filters .button{flex:1;padding:10px}.calendar-filters .calendar-refresh{flex-basis:100%;margin-left:0}}

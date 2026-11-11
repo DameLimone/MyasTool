@@ -39,8 +39,9 @@ export function createApiHandler({ method = 'GET', executeRequest }) {
   return async function apiHandler(req, res, dependencies = {}) {
     const requestId = randomUUID();
     setHeaders(res, requestId);
-    if (req.method !== method) {
-      res.setHeader('Allow', method);
+    const methods = Array.isArray(method) ? method : [method];
+    if (!methods.includes(req.method)) {
+      res.setHeader('Allow', methods.join(', '));
       return respondError(res, new ApiError(405, 'METHOD_NOT_ALLOWED', 'Method not allowed.'), requestId);
     }
 
@@ -66,6 +67,30 @@ export function createApiHandler({ method = 'GET', executeRequest }) {
       return respondError(res, error, requestId);
     }
   };
+}
+
+export async function readJsonBody(req, limit = 16384) {
+  if ((req.headers['content-type'] || '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+    throw new ApiError(415, 'JSON_REQUIRED', 'Use application/json for settings changes.');
+  }
+  try {
+    if (req.body !== undefined) {
+      const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      if (Buffer.byteLength(raw) > limit) throw new ApiError(413, 'REQUEST_TOO_LARGE', 'Settings request is too large.');
+      return JSON.parse(raw);
+    }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += Buffer.byteLength(chunk);
+      if (size > limit) throw new ApiError(413, 'REQUEST_TOO_LARGE', 'Settings request is too large.');
+      chunks.push(Buffer.from(chunk));
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, 'INVALID_JSON', 'Settings request must contain valid JSON.');
+  }
 }
 
 export function workspaceIdFromRequest(req) {

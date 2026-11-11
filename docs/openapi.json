@@ -3,7 +3,7 @@
   "info": {
     "title": "Mya Workspace API",
     "version": "1.0.0",
-    "description": "Initial private session and workspace-capabilities endpoints. These routes require configured Clerk and Supabase services."
+    "description": "Clerk-protected private session, workspace-capability, and configurable scheduling APIs. Runtime deployment requires configured Clerk and Postgres. Public booking and notification delivery are not enabled by these routes."
   },
   "servers": [
     {
@@ -119,6 +119,336 @@
           },
           "503": {
             "$ref": "#/components/responses/BackendUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/scheduling-settings": {
+      "get": {
+        "operationId": "getSchedulingSettings",
+        "summary": "Read workspace scheduling and reminder configuration",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current settings. Reminder timing is saved configuration; delivery worker is not implemented.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulingSettingsResponse"
+                },
+                "examples": {
+                  "current": {
+                    "value": {
+                      "data": {
+                        "revision": 2,
+                        "timezone": "America/Chicago",
+                        "weeklyHours": [
+                          {
+                            "weekday": 0,
+                            "start": "10:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "weekday": 6,
+                            "start": "10:00",
+                            "end": "17:00"
+                          }
+                        ],
+                        "minimumNoticeMinutes": 1440,
+                        "minimumNoticeConfirmed": true,
+                        "bookingHorizon": {
+                          "unit": "months",
+                          "value": 3
+                        },
+                        "buffers": {
+                          "beforeMinutes": 0,
+                          "afterMinutes": 0
+                        },
+                        "slotIntervalMinutes": 15,
+                        "holdMinutes": 10,
+                        "requiredContactFields": [
+                          "phone",
+                          "firstName",
+                          "lastName",
+                          "email"
+                        ],
+                        "cancellation": {
+                          "policyText": "Synthetic example policy; contact the salon for changes.",
+                          "noticeMinutes": null,
+                          "feeMinor": null,
+                          "feeCurrency": null,
+                          "termsConfirmed": false,
+                          "lateArrivalGraceMinutes": 10
+                        },
+                        "reminders": {
+                          "enabled": true,
+                          "minutesBefore": [
+                            60
+                          ],
+                          "recipient": "workspace_owner",
+                          "deliveryStatus": "not_implemented"
+                        },
+                        "publicBookingEnabled": false,
+                        "bookingMode": "square_only",
+                        "canEdit": true
+                      },
+                      "meta": {
+                        "requestId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, unsupported fields, or invalid hours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only owners/admins may edit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace missing/not authorized, or scheduling not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity or runtime database unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSchedulingSettings",
+        "summary": "Update scheduling settings as an owner or admin",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchedulingSettingsPatch"
+              },
+              "example": {
+                "revision": 2,
+                "minimumNoticeMinutes": 1440,
+                "reminders": {
+                  "enabled": true,
+                  "minutesBefore": [
+                    60
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current settings. Reminder timing is saved configuration; delivery worker is not implemented.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulingSettingsResponse"
+                },
+                "examples": {
+                  "current": {
+                    "value": {
+                      "data": {
+                        "revision": 2,
+                        "timezone": "America/Chicago",
+                        "weeklyHours": [
+                          {
+                            "weekday": 0,
+                            "start": "10:00",
+                            "end": "17:00"
+                          },
+                          {
+                            "weekday": 6,
+                            "start": "10:00",
+                            "end": "17:00"
+                          }
+                        ],
+                        "minimumNoticeMinutes": 1440,
+                        "minimumNoticeConfirmed": true,
+                        "bookingHorizon": {
+                          "unit": "months",
+                          "value": 3
+                        },
+                        "buffers": {
+                          "beforeMinutes": 0,
+                          "afterMinutes": 0
+                        },
+                        "slotIntervalMinutes": 15,
+                        "holdMinutes": 10,
+                        "requiredContactFields": [
+                          "phone",
+                          "firstName",
+                          "lastName",
+                          "email"
+                        ],
+                        "cancellation": {
+                          "policyText": "Synthetic example policy; contact the salon for changes.",
+                          "noticeMinutes": null,
+                          "feeMinor": null,
+                          "feeCurrency": null,
+                          "termsConfirmed": false,
+                          "lateArrivalGraceMinutes": 10
+                        },
+                        "reminders": {
+                          "enabled": true,
+                          "minutesBefore": [
+                            60
+                          ],
+                          "recipient": "workspace_owner",
+                          "deliveryStatus": "not_implemented"
+                        },
+                        "publicBookingEnabled": false,
+                        "bookingMode": "square_only",
+                        "canEdit": true
+                      },
+                      "meta": {
+                        "requestId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, unsupported fields, or invalid hours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only owners/admins may edit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace missing/not authorized, or scheduling not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SETTINGS_CHANGED or LIVE_SCHEDULE_REVIEW_REQUIRED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 16 KiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity or runtime database unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -281,6 +611,478 @@
             }
           }
         }
+      },
+      "SchedulingSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "IANA timezone, e.g. America/Chicago"
+          },
+          "weeklyHours": {
+            "type": "array",
+            "maxItems": 28,
+            "description": "Closed days are omitted. Same-day local periods cannot overlap.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "weekday": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
+                },
+                "start": {
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                }
+              },
+              "required": [
+                "weekday",
+                "start",
+                "end"
+              ]
+            }
+          },
+          "minimumNoticeMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "minimumNoticeConfirmed": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "bookingHorizon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unit",
+                  "value"
+                ],
+                "properties": {
+                  "unit": {
+                    "const": "months"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unit",
+                  "value"
+                ],
+                "properties": {
+                  "unit": {
+                    "const": "days"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365
+                  }
+                }
+              }
+            ]
+          },
+          "buffers": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "beforeMinutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              },
+              "afterMinutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              }
+            },
+            "required": [
+              "beforeMinutes",
+              "afterMinutes"
+            ]
+          },
+          "slotIntervalMinutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 60
+          },
+          "holdMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          },
+          "requiredContactFields": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "phone",
+                "firstName",
+                "lastName",
+                "email"
+              ]
+            }
+          },
+          "cancellation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "policyText": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "noticeMinutes": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 43200
+              },
+              "feeMinor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "feeCurrency": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[A-Z]{3}$"
+              },
+              "termsConfirmed": {
+                "type": "boolean"
+              },
+              "lateArrivalGraceMinutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              }
+            },
+            "required": [
+              "policyText",
+              "noticeMinutes",
+              "feeMinor",
+              "feeCurrency",
+              "termsConfirmed",
+              "lateArrivalGraceMinutes"
+            ],
+            "description": "No automatic fees, cancellations, or bans. Confirmed terms require explicit notice, fee (0 for none), and policy text. Nonzero fee requires currency."
+          },
+          "reminders": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "minutesBefore": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 5,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10080
+                }
+              },
+              "recipient": {
+                "const": "workspace_owner"
+              },
+              "deliveryStatus": {
+                "const": "not_implemented"
+              }
+            },
+            "required": [
+              "enabled",
+              "minutesBefore",
+              "recipient",
+              "deliveryStatus"
+            ]
+          },
+          "publicBookingEnabled": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "bookingMode": {
+            "type": "string",
+            "enum": [
+              "square_only",
+              "shadow",
+              "first_party"
+            ],
+            "readOnly": true
+          },
+          "canEdit": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "revision",
+          "timezone",
+          "weeklyHours",
+          "minimumNoticeMinutes",
+          "minimumNoticeConfirmed",
+          "bookingHorizon",
+          "buffers",
+          "slotIntervalMinutes",
+          "holdMinutes",
+          "requiredContactFields",
+          "cancellation",
+          "reminders",
+          "publicBookingEnabled",
+          "bookingMode",
+          "canEdit"
+        ]
+      },
+      "SchedulingSettingsPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "IANA timezone, e.g. America/Chicago"
+          },
+          "weeklyHours": {
+            "type": "array",
+            "maxItems": 28,
+            "description": "Closed days are omitted. Same-day local periods cannot overlap.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "weekday": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
+                },
+                "start": {
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                }
+              },
+              "required": [
+                "weekday",
+                "start",
+                "end"
+              ]
+            }
+          },
+          "minimumNoticeMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 43200
+          },
+          "bookingHorizon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unit",
+                  "value"
+                ],
+                "properties": {
+                  "unit": {
+                    "const": "months"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unit",
+                  "value"
+                ],
+                "properties": {
+                  "unit": {
+                    "const": "days"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365
+                  }
+                }
+              }
+            ]
+          },
+          "buffers": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "beforeMinutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              },
+              "afterMinutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              }
+            },
+            "required": []
+          },
+          "slotIntervalMinutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 60
+          },
+          "holdMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          },
+          "requiredContactFields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "phone",
+                "firstName",
+                "lastName",
+                "email"
+              ]
+            }
+          },
+          "cancellation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "policyText": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "noticeMinutes": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 43200
+              },
+              "feeMinor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "feeCurrency": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[A-Z]{3}$"
+              },
+              "termsConfirmed": {
+                "type": "boolean"
+              },
+              "lateArrivalGraceMinutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 180
+              }
+            },
+            "required": [],
+            "description": "No automatic fees, cancellations, or bans. Confirmed terms require explicit notice, fee (0 for none), and policy text. Nonzero fee requires currency."
+          },
+          "reminders": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "minutesBefore": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 5,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10080
+                }
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "minProperties": 2,
+        "description": "Partial owner/admin update. Include revision from the latest GET. Concurrent changes return 409. Public booking activation is a separate, guarded operation."
+      },
+      "SchedulingSettingsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SchedulingSettings"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       }
     },
     "responses": {

@@ -5,7 +5,7 @@ import { createHostedSquareHandler } from './hosted-square.js';
 const env = { SQUARE_APP_ORIGIN: 'https://tool.test', SQUARE_ENVIRONMENT: 'production', SQUARE_APPLICATION_ID: 'app', SQUARE_APPLICATION_SECRET: 'secret', SQUARE_TOKEN_KEY: 'ab'.repeat(32) };
 const SESSION = '__Host-mya-square';
 const STATE = '__Host-mya-square-oauth';
-function fixture() {
+function fixture({ bookingFailure, refreshFailure } = {}) {
   let time = Date.parse('2026-11-11T00:00:00Z');
   let revoked = false, outage = false;
   const calls = [], usedCodes = new Set();
@@ -14,8 +14,11 @@ function fixture() {
     calls.push({ url, body, headers: init.headers });
     if (outage) return { ok: false, status: 503 };
     if (revoked) return { ok: false, status: 401 };
-    if (url.endsWith('/oauth2/token/status')) return { ok: true, json: async () => ({ merchant_id: 'seller', client_id: 'app', scopes: ['MERCHANT_PROFILE_READ'] }) };
+    if (url.endsWith('/oauth2/token/status')) return { ok: true, json: async () => ({ merchant_id: 'seller', client_id: 'app', scopes: bookingFailure ? ['MERCHANT_PROFILE_READ','APPOINTMENTS_READ','APPOINTMENTS_ALL_READ','ITEMS_READ'] : ['MERCHANT_PROFILE_READ'] }) };
+    if (url.endsWith('/v2/locations')) return { ok:true, json:async()=>({locations:[{id:'salon',name:'Salon',status:'ACTIVE',timezone:'America/Chicago'}]}) };
+    if (url.includes('/v2/bookings?') && bookingFailure) return {ok:false,status:bookingFailure,json:async()=>({errors:[{code:'INVALID_REQUEST_ERROR'}]})};
     if (url.endsWith('/oauth2/token')) {
+      if (body.grant_type === 'refresh_token' && refreshFailure) return {ok:false,status:400,json:async()=>({error:refreshFailure})};
       if (body.code && usedCodes.has(body.code)) return { ok: false, status: 400 };
       usedCodes.add(body.code);
       return { ok: true, json: async () => ({ access_token: 'private-access-token', refresh_token: 'private-refresh-token', merchant_id: body.code === 'other' ? 'other' : 'seller', expires_at: new Date(time + 30 * 86400000).toISOString() }) };
@@ -145,4 +148,31 @@ test('appointments require authorization and scope upgrades preserve the existin
   assert.equal(result.data.code, 'APPOINTMENT_PERMISSION_REQUIRED');
   assert.equal(jar[SESSION], session);
   assert.equal((await f.request('status', { jar })).data.connected, true);
+});
+
+test('rejected calendar queries and permissions do not erase a valid Square connection', async () => {
+  for (const status of [400,403]) {
+    const f=fixture({bookingFailure:status}),jar={};
+    await f.connect(jar);
+    const before=jar[SESSION];
+    const response=await f.request('appointments?range=today',{jar});
+    assert.equal(response.statusCode,status===400?502:403);
+    assert.equal(response.data.code,status===400?'SQUARE_REQUEST_REJECTED':'SQUARE_APPOINTMENTS_UNAVAILABLE');
+    assert.equal(jar[SESSION],before);
+    assert.equal((await f.request('status',{jar})).data.connected,true);
+    assert.equal(response.headers['Set-Cookie'],undefined);
+  }
+});
+
+test('only a rejected refresh grant clears authorization; configuration failures preserve it', async () => {
+  for(const code of ['invalid_grant','invalid_client']) {
+    const f=fixture({refreshFailure:code}),jar={};await f.connect(jar);
+    f.advance(29.5*86400000);
+    const response=await f.request('status',{jar});
+    if(code==='invalid_grant') {
+      assert.equal(response.data.reconnect,true);assert.equal(jar[SESSION],undefined);
+    } else {
+      assert.equal(response.statusCode,502);assert.ok(jar[SESSION]);
+    }
+  }
 });

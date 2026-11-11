@@ -44,6 +44,6 @@ export async function inUserTransaction(database, userId, callback) {
     if (!user || user.disabledAt) {
       throw new ApiError(403, 'USER_DISABLED', 'This account is not authorized to use the workspace.');
     }
-    return callback({ repositories, user });
+    return callback({ repositories, user, transaction });
   });
 }

@@ -1,8 +1,11 @@
 # Backend foundation setup
 
-Phase 1 adds server-side app identity and workspace membership APIs. It does not
-add a sign-in screen, import business records, or provision cloud resources. The
-existing browser-local screens and Square OAuth remain separate and unchanged.
+Phase 1 adds server-side app identity and workspace membership APIs. The MyasTool
+Supabase database is now provisioned and its identity and disabled scheduling
+foundation schemas are applied. See [scheduling status](SCHEDULING-BACKEND-STATUS.md).
+This does not add a sign-in screen, import business records, or configure the
+Vercel runtime connection. Existing browser-local screens and Square OAuth remain
+separate and unchanged by the database milestone.
 
 ## Selected runtime
 
@@ -57,8 +60,10 @@ No organization, member, or business data is seeded. Create a workspace and
 assign confirmed Clerk user IDs through an approved administrative process; the
 API does not allow users to grant themselves membership.
 
-The migration has been tested against an embedded PostgreSQL-compatible engine.
-It has not yet been applied to a provisioned Supabase project.
+The migrations have been tested against an embedded PostgreSQL-compatible engine
+and applied to Supabase project `vegyorhmxmmxkcwzkspl`. The migration runner reads
+the legacy `db/migrations` and new CLI-generated `supabase/migrations` directories.
+The hosted schema records matching application migration checksums.
 
 ## Current API surface
 

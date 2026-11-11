@@ -81,8 +81,7 @@ test('custom date range reads calendar bookings without changing Square data', a
     if (path === '/v2/locations') return { locations: [{ id: 'salon', name: 'Salon', status: 'ACTIVE', timezone: 'America/Chicago' }] };
     if (path.startsWith('/v2/bookings?')) {
       const params = new URL(path, 'https://test').searchParams;
-      assert.equal(params.get('start_at_min'), '2026-11-01T05:00:00.000Z');
-      assert.equal(params.get('start_at_max'), '2026-12-01T06:00:00.000Z');
+      assert.ok(Date.parse(params.get('start_at_max'))-Date.parse(params.get('start_at_min'))<=30*86400000);
       return { bookings: [] };
     }
     assert.fail(`Unexpected endpoint ${path}`);
@@ -97,8 +96,37 @@ test('custom date range reads calendar bookings without changing Square data', a
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.range, 'custom');
+  assert.equal(result.data.syncState, 'current');
   assert.deepEqual(result.data.appointments, []);
+  assert.ok(result.data.syncedAt);
   assert.ok(calls.some(path => path.startsWith('/v2/bookings?')));
+  const chunks=calls.filter(path=>path.startsWith('/v2/bookings?')).map(path=>new URL(path,'https://test').searchParams);
+  assert.equal(chunks.length,2);
+  assert.equal(chunks[0].get('start_at_min'),'2026-11-01T05:00:00.000Z');
+  assert.equal(chunks[0].get('start_at_max'),chunks[1].get('start_at_min'));
+  assert.equal(chunks[1].get('start_at_max'),'2026-12-01T06:00:00.000Z');
+});
+
+test('six-week calendars paginate each bounded chunk and deduplicate boundary bookings', async()=>{
+  const chunks=[];
+  const square=async(path)=>{
+    if(path==='/oauth2/token/status')return {scopes:SQUARE_SCOPES,merchant_id:'seller',client_id:'app'};
+    if(path==='/v2/locations')return {locations:[{id:'salon',name:'Salon',status:'ACTIVE',timezone:'America/Chicago'}]};
+    if(path.startsWith('/v2/bookings?')){
+      const p=new URL(path,'https://test').searchParams;chunks.push(p);
+      assert.ok(Date.parse(p.get('start_at_max'))-Date.parse(p.get('start_at_min'))<=30*86400000);
+      const b={id:'boundary',location_id:'salon',start_at:'2026-11-20T12:00:00Z',status:'ACCEPTED',appointment_segments:[]};
+      return {bookings:[b],...(!p.get('cursor')?{cursor:'page-two'}:{})};
+    }
+    assert.fail(path);
+  };
+  const result=await readAppointments({square,accessToken:'synthetic',merchantId:'seller',applicationId:'app',query:new URLSearchParams('range=custom&startDate=2026-10-25&endDate=2026-12-06'),now:Date.parse('2026-11-11T18:00Z')});
+  assert.equal(chunks.length,4);
+  assert.equal(chunks[0].get('start_at_max'),chunks[2].get('start_at_min'));
+  assert.equal(chunks[1].get('cursor'),'page-two');
+  assert.equal(chunks[3].get('cursor'),'page-two');
+  assert.equal(result.data.appointments.length,1);
+  assert.equal(result.data.syncState,'current');
 });
 
 test('rejects invalid custom calendar ranges before calling Square', async () => {

@@ -72,7 +72,7 @@ export async function readAppointments({ square, accessToken, merchantId, applic
   }
   const locationData = await square('/v2/locations', null, accessToken);
   const locations = (locationData.locations || []).filter(l => l.status === 'ACTIVE').map(l => ({ id: l.id, name: l.name || l.business_name || 'Salon', timezone: l.timezone || 'UTC' }));
-  if (!locations.length) return { status: 200, data: { locations: [], appointments: [], range, warning: 'No active Square locations were found.', syncedAt: new Date(now).toISOString() } };
+  if (!locations.length) return { status: 200, data: { locations: [], appointments: [], range, warning: 'No active Square locations were found.', syncState: 'current', syncedAt: new Date(now).toISOString() } };
   const location = query.has('location') ? locations.find(l => l.id === query.get('location')) : locations[0];
   if (!location) return { status: 400, data: { error: 'Choose a location from your connected Square account.' } };
   const window = hasStartDate
@@ -80,17 +80,28 @@ export async function readAppointments({ square, accessToken, merchantId, applic
     : appointmentWindow(now, location.timezone, range);
   if (!window) return { status: 400, data: { error: 'Choose a valid custom date range no longer than 42 days.' } };
   const bookings = new Map();
-  let cursor, pages = 0;
-  do {
-    const params = new URLSearchParams({ location_id: location.id, start_at_min: window.start, start_at_max: window.end, limit: '100', ...(cursor ? { cursor } : {}) });
-    const page = await square(`/v2/bookings?${params}`, null, accessToken);
-    for (const b of page.bookings || []) {
-      if (b.location_id === location.id && Date.parse(b.start_at) >= Date.parse(window.start) && Date.parse(b.start_at) < Date.parse(window.end)
-        && !b.status?.startsWith('CANCELLED') && b.status !== 'DECLINED') bookings.set(b.id, b);
-    }
-    cursor = page.cursor;
-    pages++;
-  } while (cursor && pages < 10);
+  let pages = 0, truncated = false;
+  let chunkStart = Date.parse(window.start);
+  const rangeEnd = Date.parse(window.end);
+  // Square accepts at most 31 days per request. Thirty elapsed days also stay
+  // safely within that limit across local daylight-saving transitions.
+  while (chunkStart < rangeEnd && pages < 10) {
+    const chunkEnd = Math.min(rangeEnd, chunkStart + 30 * 86400000);
+    let cursor;
+    do {
+      const params = new URLSearchParams({ location_id: location.id, start_at_min: new Date(chunkStart).toISOString(), start_at_max: new Date(chunkEnd).toISOString(), limit: '100', ...(cursor ? { cursor } : {}) });
+      const page = await square(`/v2/bookings?${params}`, null, accessToken);
+      for (const b of page.bookings || []) {
+        if (b.location_id === location.id && Date.parse(b.start_at) >= Date.parse(window.start) && Date.parse(b.start_at) < rangeEnd
+          && !b.status?.startsWith('CANCELLED') && b.status !== 'DECLINED') bookings.set(b.id, b);
+      }
+      cursor = page.cursor;
+      pages++;
+    } while (cursor && pages < 10);
+    if (cursor) { truncated = true; break; }
+    chunkStart = chunkEnd;
+  }
+  truncated ||= chunkStart < rangeEnd;
   const ids = [...new Set([...bookings.values()].flatMap(b => (b.appointment_segments || []).map(s => s.service_variation_id).filter(Boolean)))];
   const names = new Map();
   let detailsUnavailable = ids.length > 1000;
@@ -114,7 +125,7 @@ export async function readAppointments({ square, accessToken, merchantId, applic
     durationMinutes: (b.appointment_segments || []).reduce((sum,s) => sum + (Number.isFinite(s.duration_minutes) ? s.duration_minutes : 0) + (Number.isFinite(s.intermission_minutes) ? s.intermission_minutes : 0), 0),
     services: (b.appointment_segments || []).map(s => names.get(s.service_variation_id) || 'Service details unavailable'),
   }));
-  return { status: 200, data: { locations, location, appointments, range, ...window, syncedAt: new Date(now).toISOString(),
-    warning: [cursor ? 'Only the first 1,000 results were loaded. Use Today to narrow the range.' : '', detailsUnavailable ? 'Some service names could not be loaded.' : ''].filter(Boolean).join(' ') || null,
+  return { status: 200, data: { locations, location, appointments, range, ...window, syncState: truncated ? 'partial' : 'current', syncedAt: new Date(now).toISOString(),
+    warning: [truncated ? 'The appointment list is incomplete. Use a shorter date range to load the remaining results.' : '', detailsUnavailable ? 'Some service names could not be loaded.' : ''].filter(Boolean).join(' ') || null,
   } };
 }

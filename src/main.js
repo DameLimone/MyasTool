@@ -30,9 +30,6 @@ let appointmentState = { loading: false, data: null, error: null, code: null };
 let appointmentRange = 'today';
 let appointmentLocation = '';
 let appointmentRequest = 0;
-let calendarAppointmentState = { loading: false, data: null, error: null, code: null };
-let calendarAppointmentRequest = 0;
-let calendarFilter = 'all';
 let view = 'overview';
 let filter = 'all';
 let search = '';
@@ -85,7 +82,7 @@ function postCard(post) {
     <div class="post-footer"><span>${icon(post.status === 'draft' ? 'edit' : 'calendar')}${post.status === 'published' ? 'Publication confirmed' : dateLabel(post.date, { hour: 'numeric', minute: '2-digit' })}</span>${post.approval === 'pending' ? '<span class="approval-dot" title="Waiting for Mya">Awaiting approval</span>' : ''}</div></div></button>`;
 }
 function render() {
-  const titles = { overview: 'Home', appointments: 'Appointments', posts: 'All posts', calendar: 'Content & appointments calendar', media: 'Media library', approvals: 'Mya’s approvals', settings: 'Studio settings', help: 'Help me navigate' };
+  const titles = { overview: 'Home', appointments: 'Salon appointments', posts: 'All posts', calendar: 'Social content calendar', media: 'Media library', approvals: 'Mya’s approvals', settings: 'Studio settings', help: 'Help me navigate' };
   app.innerHTML = `<aside class="sidebar">
     <a class="brand" href="#" data-view="overview"><span class="brand-mark">m<span>✧</span></span><span>mya<span class="brand-sub">CONTENT STUDIO</span></span></a>
     <div class="workspace"><span class="workspace-avatar">M</span><div>Mya’s salon<small>Workspace for you two</small></div><span class="workspace-dot"></span></div>
@@ -119,7 +116,7 @@ function helpPage() {
   const steps = [
     ['media', 'image', 'Add photos or videos', 'Open Media library, then Upload media. Set client permission before sharing.'],
     ['posts', 'edit', 'Write or finish a post', 'Open All posts to edit an idea, or Create a post to start one. Save as a draft whenever you like.'],
-    ['calendar', 'calendar', 'See posts and appointments', 'Open Calendar to see both in one place. Use the filters to focus on content or Square appointments, then tap a date to plan a post.'],
+    ['calendar', 'calendar', 'Plan a social post', 'Open the social content calendar and tap a date to plan a post. Open Appointments for Mya’s Square schedule.'],
     ['approvals', 'heart', 'Give a post one last look', 'Open Approvals, select a post, and update Mya’s review in the editor.'],
   ];
   return `<div class="help-page">${pageHeading('NO NEED TO LEARN EVERYTHING AT ONCE', 'What would you like to do?', 'Choose a task. We’ll take you to the right place.', `<button class="button secondary" data-help-back>Back to where I was</button>`)}
@@ -142,69 +139,10 @@ function calendarPage() {
   const year = calendarDate.getFullYear(), month = calendarDate.getMonth();
   const first = new Date(year, month, 1).getDay();
   const days = new Date(year, month + 1, 0).getDate();
-  const { loading, data, error, code } = calendarAppointmentState;
-  const timezone = data?.location?.timezone || 'UTC';
-  const squareNeedsAuth = ['APPOINTMENT_PERMISSION_REQUIRED', 'SQUARE_CONNECTION_REQUIRED', 'SQUARE_APPOINTMENTS_UNAVAILABLE'].includes(code);
-  const appointments = (date) => calendarFilter === 'content' ? [] : (data?.appointments || [])
-    .filter((appointment) => dateInTimeZone(appointment.startAt, timezone) === date)
-    .map((appointment) => `<article class="calendar-appointment" title="${esc(appointment.services.join(' + ') || 'Service details unavailable')} · ${esc(calendarAppointmentStatus(appointment.status))}"><strong>${esc(formatAppointmentTime(appointment.startAt, timezone))}${appointment.durationMinutes ? ` · ${appointment.durationMinutes}m` : ''}</strong><span>${esc(appointment.services.join(' + ') || 'Service details unavailable')}</span><small>${esc(calendarAppointmentStatus(appointment.status))}</small></article>`).join('');
-  return `${pageHeading('ONE CALENDAR, LESS CLUTTER', 'Content & appointments', 'See planned posts and Square appointments together. Filter the calendar whenever you need more room.', `<button class="button primary" data-new>${icon('plus')}Create a post</button>`)}
-    <div class="calendar-filters" role="group" aria-label="Show calendar items">
-      ${[['all', 'Everything'], ['content', 'Content'], ['appointments', 'Appointments']].map(([key, label]) => `<button class="button ${calendarFilter === key ? 'primary' : 'secondary'}" data-calendar-filter="${key}" aria-pressed="${calendarFilter === key}">${label}</button>`).join('')}
-      <button class="button secondary calendar-refresh" data-calendar-refresh ${loading ? 'disabled' : ''}>${loading ? 'Checking Square…' : 'Refresh appointments'}</button>
-    </div>
-    ${loading && calendarFilter !== 'content' ? '<p class="page-note" role="status">Loading appointments from Square…</p>' : ''}
-    ${error && calendarFilter !== 'content' ? `<div class="appointment-message calendar-message" role="alert"><p>${esc(error)}</p>${squareNeedsAuth ? `<p>Appointments are read-only. Connect Square or allow appointment access to show them here.</p><button class="button primary" data-square-connect ${squareBusy ? 'disabled' : ''}>${squareBusy ? 'Opening Square…' : code === 'SQUARE_CONNECTION_REQUIRED' ? 'Connect Square' : 'Allow appointment access'}</button>` : ''}</div>` : ''}
-    ${data?.warning && calendarFilter !== 'content' ? `<p class="appointment-message" role="status">${esc(data.warning)}</p>` : ''}
-    <div class="calendar-panel"><div class="calendar-toolbar"><h2>${calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2><div><button class="button secondary" data-today>Today</button><button class="icon-button reverse" data-month="-1" aria-label="Previous month">${icon('chevron')}</button><button class="icon-button" data-month="1" aria-label="Next month">${icon('chevron')}</button></div></div><div class="calendar-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => `<div class="weekday">${day}</div>`).join('')}${Array.from({ length: first }, () => '<div class="calendar-cell outside"></div>').join('')}${Array.from({ length: days }, (_, index) => {
+  return `${pageHeading('A LITTLE RHYTHM FOR YOUR CONTENT', 'Room for what’s next', 'Plan a beautiful month. Click any day to start a post.')}<div class="calendar-panel"><div class="calendar-toolbar"><h2>${calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h2><div><button class="button secondary" data-today>Today</button><button class="icon-button reverse" data-month="-1" aria-label="Previous month">${icon('chevron')}</button><button class="icon-button" data-month="1" aria-label="Next month">${icon('chevron')}</button></div></div><div class="calendar-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => `<div class="weekday">${day}</div>`).join('')}${Array.from({ length: first }, () => '<div class="calendar-cell outside"></div>').join('')}${Array.from({ length: days }, (_, index) => {
     const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`;
-    const posts = calendarFilter === 'appointments' ? [] : state.posts.filter((post) => post.date?.startsWith(date));
-    return `<div class="calendar-cell ${date === localDate() ? 'is-today' : ''}"><button class="day-number" data-date="${date}" aria-label="Create post for ${date}">${index + 1}</button>${posts.map((post) => `<button class="calendar-post ${post.status}" data-edit="${esc(post.id)}"><i></i>${esc(post.title)}<small>${statusNames[post.status]}${post.sample ? ' · Sample' : ''}</small></button>`).join('')}${appointments(date)}</div>`;
-  }).join('')}</div><div class="calendar-legend">${calendarFilter !== 'appointments' ? '<span><i class="legend-dot planned"></i>Planned</span><span><i class="legend-dot draft"></i>Draft</span><span><i class="legend-dot published"></i>Confirmed published</span>' : ''}${calendarFilter !== 'content' ? '<span><i class="legend-dot appointment"></i>Square appointment</span>' : ''}</div></div><p class="page-note">Post times use your device’s timezone. Appointment dates and times use the selected Square location’s timezone. Appointments are read-only; Square remains the source of truth.</p><p class="page-note">On smaller screens, swipe across the calendar to see the whole week. Nothing is published or changed automatically.</p>`;
-}
-function dateInTimeZone(value, timezone) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date(value));
-  const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-function formatAppointmentTime(value, timezone) {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone, hour: 'numeric', minute: '2-digit',
-  }).format(new Date(value));
-}
-function calendarAppointmentStatus(status = 'UNKNOWN') {
-  return ({ ACCEPTED: 'Confirmed', PENDING: 'Pending', NO_SHOW: 'No-show' })[status]
-    || status.replaceAll('_', ' ').toLowerCase();
-}
-async function loadCalendarAppointments() {
-  const request = ++calendarAppointmentRequest;
-  const startDate = `${calendarDate.getFullYear()}-${String(calendarDate.getMonth() + 1).padStart(2, '0')}-01`;
-  const end = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1);
-  const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-01`;
-  calendarAppointmentState = { loading: true, data: null, error: null, code: null };
-  if (view === 'calendar') render();
-  try {
-    const params = new URLSearchParams({ range: 'custom', startDate, endDate, ...(appointmentLocation ? { location: appointmentLocation } : {}) });
-    const response = await fetch(`/api/square/appointments?${params}`, {
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    const data = await response.json();
-    if (request !== calendarAppointmentRequest) return;
-    if (!response.ok) {
-      calendarAppointmentState = { loading: false, data: null, error: data.error || 'Appointments could not be loaded.', code: data.code };
-    } else {
-      appointmentLocation = data.location?.id || appointmentLocation;
-      calendarAppointmentState = { loading: false, data, error: null, code: null };
-    }
-  } catch {
-    if (request !== calendarAppointmentRequest) return;
-    calendarAppointmentState = { loading: false, data: null, error: 'Cannot reach Square appointments. Check your connection and try again.', code: null };
-  }
-  if (view === 'calendar') render();
+    return `<div class="calendar-cell ${date === localDate() ? 'is-today' : ''}"><button class="day-number" data-date="${date}" aria-label="Create post for ${date}">${index + 1}</button>${state.posts.filter((post) => post.date?.startsWith(date)).map((post) => `<button class="calendar-post ${post.status}" data-edit="${esc(post.id)}"><i></i>${esc(post.title)}<small>${statusNames[post.status]}${post.sample ? ' · Sample' : ''}</small></button>`).join('')}</div>`;
+  }).join('')}</div><div class="calendar-legend"><span><i class="legend-dot planned"></i>Planned</span><span><i class="legend-dot draft"></i>Draft</span><span><i class="legend-dot published"></i>Confirmed published</span></div></div><p class="page-note">On smaller screens, swipe across the calendar to see the whole week.</p><p class="page-note">${icon('clock')}All times are in your device’s local timezone. Planning does not schedule automatic publishing.</p>`;
 }
 function mediaPage() {
   return `${pageHeading('THE DETAILS WORTH KEEPING', 'Your little library of beautiful', 'Mya’s work, ready for its next moment in the spotlight.', `<button class="button primary" data-upload>${icon('upload')}Upload media</button>`)}<div class="notice">${icon('heart')}<div><strong>Beautiful work. Thoughtful sharing.</strong><p>Confirm client permission before publishing. The supplied photos are not marked as approved.</p></div></div><input hidden type="file" id="media-upload" accept="image/*,video/*" multiple /><div class="media-grid">${state.media.map((media) => `<article class="media-card"><div class="library-photo">${mediaMarkup(media, '', true)}<span class="sample-badge">${media.blob ? media.type.startsWith('video/') ? 'Video' : 'Photo' : 'Mya’s work'}</span></div><div class="media-card-body"><h3>${esc(media.name)}</h3><label>Client permission<select data-consent="${media.id}" aria-label="Client permission for ${esc(media.name)}"><option value="unknown" ${media.consent === 'unknown' ? 'selected' : ''}>Not confirmed</option><option value="approved" ${media.consent === 'approved' ? 'selected' : ''}>Approved for use</option><option value="declined" ${media.consent === 'declined' ? 'selected' : ''}>Do not use</option></select></label><div class="media-actions"><button class="text-button" data-new data-media="${media.id}">Create a post ${icon('arrow')}</button><button class="icon-button" data-download="${media.id}" aria-label="Download ${esc(media.name)}">${icon('download')}</button></div></div></article>`).join('')}</div><p class="page-note">Uploads stay in this browser only. Keep original files backed up elsewhere.</p>`;
@@ -368,16 +306,13 @@ document.addEventListener('click', async (event) => {
       window.scrollTo({ top: 0 });
       document.querySelector('main').focus({ preventScroll: true });
       if (view === 'appointments') await loadAppointments();
-      else if (view === 'calendar') await loadCalendarAppointments();
     } else if (button.hasAttribute('data-new')) openEditor(null, button.dataset.media);
     else if (button.dataset.edit) openEditor(button.dataset.edit);
     else if (button.hasAttribute('data-close')) closeEditor();
     else if (button.dataset.filter) { filter = button.dataset.filter; render(); }
-    else if (button.dataset.calendarFilter) { calendarFilter = button.dataset.calendarFilter; render(); }
     else if (button.dataset.statusView) { view = 'posts'; filter = button.dataset.statusView; search = ''; render(); }
-    else if (button.dataset.month) { calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + Number(button.dataset.month), 1); render(); if (view === 'calendar') await loadCalendarAppointments(); }
-    else if (button.hasAttribute('data-today')) { calendarDate = new Date(); render(); if (view === 'calendar') await loadCalendarAppointments(); }
-    else if (button.hasAttribute('data-calendar-refresh')) await loadCalendarAppointments();
+    else if (button.dataset.month) { calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + Number(button.dataset.month), 1); render(); }
+    else if (button.hasAttribute('data-today')) { calendarDate = new Date(); render(); }
     else if (button.dataset.date) openEditor(null, null, button.dataset.date);
     else if (button.hasAttribute('data-upload')) document.querySelector('#media-upload').click();
     else if (button.dataset.download) downloadMedia(button.dataset.download);

@@ -47,7 +47,7 @@ cross-origin API for the public website.
 | GET | `/api/square/callback` | Square OAuth redirect; browser-bound state validation |
 | GET | `/api/square/status` | Connection status for the current browser |
 | GET | `/api/square/appointments?range=today\|week&location=...` | Read-only appointments for the authorized seller |
-| GET | `/api/square/appointments?range=custom&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&location=...` | Read-only calendar range; end date is exclusive, maximum 42 days, dates use the selected location timezone |
+| GET | `/api/square/appointments?range=custom&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&location=...` | Read-only date range; start inclusive, end exclusive, maximum 42 days, dates use selected location timezone |
 | GET | `/api/v1/session` | Clerk-verified identity and only that user's active database memberships; requires configured Clerk and PostgreSQL |
 | GET | `/api/v1/workspaces/{workspaceId}/capabilities` | Requires an active database membership; currently returns no enabled modules or capabilities |
 
@@ -57,12 +57,28 @@ Appointment permissions: `MERCHANT_PROFILE_READ`, `APPOINTMENTS_READ`,
 `SQUARE_CONNECTION_REQUIRED`. Private responses use `Cache-Control: no-store`.
 
 Current appointment success response includes `locations`, selected `location`,
-`appointments`, `range`, `start`, `end`, `syncedAt` and optional `warning`.
+`appointments`, `range`, `start`, `end`, `syncState: "current"`, `syncedAt` and
+optional `warning`. `syncedAt` is the successful live Square fetch time; this
+endpoint does not return cached/stale bookings.
 Each appointment has `id`, `startAt`, `status`, `durationMinutes`, and `services`.
 No client names or contact details are currently returned. Today's boundaries, the seven-day window, and custom calendar ranges use the
 selected location's timezone. Custom ranges have an exclusive end date and are
-capped at 42 days. The combined content/appointments calendar uses this read-only
-range for the selected month; it does not persist Square appointments locally.
+capped at 42 days. Appointment records are not persisted locally.
+
+The current Tool UI keeps the social content calendar separate from the
+read-only salon Appointments view. The intended mobile appointment experience
+is agenda-first: Today by default, swipeable week strip, optional month date
+picker with booking dots/counts, and appointment details in a bottom sheet.
+The month picker selects dates; it is not a crowded month-grid appointment
+display. Square remains authoritative, and the appointment calendar is read-only.
+
+This existing Square route depends on the current browser's Square OAuth
+session. It is same-origin for the Tool and is not directly callable from John's
+separate static `mknails` site. The proposed Clerk/workspace route
+`GET /api/v1/workspaces/{id}/appointments` is **not implemented**. Integration
+requires an agreed same-origin server-side gateway or that future authenticated
+workspace endpoint and durable workspace-owned Square credentials. Do not use
+the browser Square cookie as cross-site auth or expose provider credentials.
 
 Current errors are `{ "code": "...", "error": "Readable message" }` where a code
 is supplied. Preserve this compatibility until a versioned API is introduced.
@@ -94,9 +110,12 @@ These conventions follow BORG's structured-error pattern without changing the
 existing Square routes during this planning phase.
 
 Frontend states must distinguish loading, disconnected, permission required,
-empty, stale, partial, provider unavailable and current. A provider error must
-never become an empty schedule or zero engagement. Write-capable controls must
-depend on server-returned capabilities and still be authorized by the backend.
+empty, stale (only when the frontend intentionally retains an earlier
+successful result), partial, provider unavailable and current. For the existing
+live Square route, an empty successful list means no returned bookings in the
+range; a request failure is not empty. A provider error must never become an
+empty schedule or zero engagement. Write-capable controls must depend on
+server-returned capabilities and still be authorized by the backend.
 
 ## Optional future public API
 

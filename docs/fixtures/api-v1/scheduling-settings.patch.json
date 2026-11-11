@@ -1,0 +1,10 @@
+{
+  "revision": 2,
+  "minimumNoticeMinutes": 1440,
+  "reminders": {
+    "enabled": true,
+    "minutesBefore": [
+      60
+    ]
+  }
+}

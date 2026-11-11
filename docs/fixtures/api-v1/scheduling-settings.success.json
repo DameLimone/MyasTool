@@ -1,0 +1,58 @@
+{
+  "data": {
+    "revision": 2,
+    "timezone": "America/Chicago",
+    "weeklyHours": [
+      {
+        "weekday": 0,
+        "start": "10:00",
+        "end": "17:00"
+      },
+      {
+        "weekday": 6,
+        "start": "10:00",
+        "end": "17:00"
+      }
+    ],
+    "minimumNoticeMinutes": 1440,
+    "minimumNoticeConfirmed": true,
+    "bookingHorizon": {
+      "unit": "months",
+      "value": 3
+    },
+    "buffers": {
+      "beforeMinutes": 0,
+      "afterMinutes": 0
+    },
+    "slotIntervalMinutes": 15,
+    "holdMinutes": 10,
+    "requiredContactFields": [
+      "phone",
+      "firstName",
+      "lastName",
+      "email"
+    ],
+    "cancellation": {
+      "policyText": "Synthetic example policy; contact the salon for changes.",
+      "noticeMinutes": null,
+      "feeMinor": null,
+      "feeCurrency": null,
+      "termsConfirmed": false,
+      "lateArrivalGraceMinutes": 10
+    },
+    "reminders": {
+      "enabled": true,
+      "minutesBefore": [
+        60
+      ],
+      "recipient": "workspace_owner",
+      "deliveryStatus": "not_implemented"
+    },
+    "publicBookingEnabled": false,
+    "bookingMode": "square_only",
+    "canEdit": true
+  },
+  "meta": {
+    "requestId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+  }
+}
