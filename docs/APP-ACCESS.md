@@ -9,7 +9,7 @@ https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021
 The SPA opens browser storage and business screens only after authenticated
 session verification and active workspace membership. Registering does not grant
 access. Signed-in unapproved people see their user ID for owner approval.
-The explicitly requested initial owner, mytykremin@gmail.com, receives owner
+The explicitly requested initial owner, dambienb@gmail.com, receives owner
 membership only after Clerk confirms that email is verified. The bootstrap never
 transfers or restores an existing owner. No passwords or verification codes are
 requested by the Tool's backend.

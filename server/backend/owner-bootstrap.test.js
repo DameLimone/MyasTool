@@ -4,11 +4,11 @@ import {bootstrapVerifiedOwner} from './owner-bootstrap.js';
 import clientConfig from '../../api/v1/client-config.js';
 
 test('owner bootstrap requires a provider-verified matching email',async()=>{
-  for(const scenario of [{email:'mytykremin@gmail.com',status:'unverified',allowed:false},{email:'someone@example.test',status:'verified',allowed:false},{email:'mytykremin@gmail.com',status:'verified',allowed:true}]){
+  for(const scenario of [{email:'dambienb@gmail.com',status:'unverified',allowed:false},{email:'mytykremin@gmail.com',status:'verified',allowed:false},{email:'someone@example.test',status:'verified',allowed:false},{email:'dambienb@gmail.com',status:'verified',allowed:true}]){
     const calls=[];
-    await bootstrapVerifiedOwner({identity:{userId:'user_candidate'},env:{INITIAL_OWNER_EMAIL:'mytykremin@gmail.com',CLERK_SECRET_KEY:'server-secret',CLERK_PUBLISHABLE_KEY:'public-key'},transaction:{unsafe:async(sql,params)=>{calls.push({sql,params});return [];}}},()=>({users:{getUser:async id=>{assert.equal(id,'user_candidate');return {emailAddresses:[{emailAddress:scenario.email,verification:{status:scenario.status}}]};}}}));
+    await bootstrapVerifiedOwner({identity:{userId:'user_candidate'},env:{INITIAL_OWNER_EMAIL:'dambienb@gmail.com',CLERK_SECRET_KEY:'server-secret',CLERK_PUBLISHABLE_KEY:'public-key'},transaction:{unsafe:async(sql,params)=>{calls.push({sql,params});return [];}}},()=>({users:{getUser:async id=>{assert.equal(id,'user_candidate');return {emailAddresses:[{emailAddress:scenario.email,verification:{status:scenario.status}}]};}}}));
     assert.equal(calls.length,scenario.allowed?1:0);
-    if(scenario.allowed)assert.deepEqual(calls[0].params,['user_candidate','mytykremin@gmail.com']);
+    if(scenario.allowed)assert.deepEqual(calls[0].params,['user_candidate','dambienb@gmail.com']);
   }
 });
 
